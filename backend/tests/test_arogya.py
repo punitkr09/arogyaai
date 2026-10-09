@@ -3,7 +3,15 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.database import SessionLocal
 from app.seed import reset_database
-from app.db_models import BatchInventory, Dispatch, Customer, ActionProposal
+from app.db_models import (
+    BatchInventory,
+    Dispatch,
+    Customer,
+    ActionProposal,
+    PurchaseOrder,
+    Product,
+    StockMovement,
+)
 from app.tools.registry import ToolRegistry
 from app.agent.orchestrator import AgentOrchestrator
 
@@ -262,3 +270,378 @@ async def test_api_endpoints():
         assert len(agent_data["events"]) >= 5
         assert len(agent_data["proposals"]) == 4
         assert agent_data["final_report"]["total_recipients"] == 25
+
+
+# ---------------------------------------------------------------------------
+# 9. Regression & Validation Tests for Proposal Actions
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_meropenem_shortage_po_does_not_create_amoxicillin_po():
+    """Regression test proving Meropenem PO creates a Meropenem PO, NOT Amoxicillin."""
+    db = SessionLocal()
+    try:
+        orchestrator = AgentOrchestrator(db)
+        run = orchestrator.run_task("Identify critical medicine shortage risks.")
+        po_prop = (
+            db.query(ActionProposal)
+            .filter_by(run_id=run.id, action_type="purchase_order")
+            .first()
+        )
+        assert po_prop is not None
+        assert "Meropenem" in po_prop.title
+        prop_id = po_prop.id
+
+        # Verify initial PO count is 0
+        assert db.query(PurchaseOrder).count() == 0
+        db.close()
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            payload = {
+                "decision": "approved",
+                "approver_role": "Operations Director",
+                "approver_name": "Rajiv Kapoor",
+                "notes": "Emergency ICU replenishment authorized.",
+            }
+            res = await client.post(f"/api/approvals/{prop_id}/action", json=payload)
+            assert res.status_code == 200
+            assert res.json()["status"] == "approved"
+
+            db2 = SessionLocal()
+            try:
+                # Exactly 1 PO was created
+                all_pos = db2.query(PurchaseOrder).all()
+                assert len(all_pos) == 1
+                created_po = all_pos[0]
+
+                # Target must be Meropenem (MED-MER-1000), NOT Amoxicillin (MED-AMX-625)
+                assert created_po.product.sku == "MED-MER-1000"
+                assert "Meropenem" in created_po.product.name
+                assert created_po.quantity == 500
+                assert created_po.supplier.name == "Sun Pharma Direct Distribution"
+                assert created_po.status == "submitted"
+
+                # Verify Amoxicillin has 0 purchase orders
+                amx_pos = (
+                    db2.query(PurchaseOrder)
+                    .join(Product)
+                    .filter(Product.sku == "MED-AMX-625")
+                    .all()
+                )
+                assert len(amx_pos) == 0
+            finally:
+                db2.close()
+    finally:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_recall_amoxicillin_po_creates_cipla_po():
+    """Verify recall PO creates an Amoxicillin PO with Cipla Direct."""
+    db = SessionLocal()
+    try:
+        orchestrator = AgentOrchestrator(db)
+        run = orchestrator.run_task("Investigate recall Batch B2231.")
+        po_prop = (
+            db.query(ActionProposal)
+            .filter_by(run_id=run.id, action_type="purchase_order")
+            .first()
+        )
+        assert po_prop is not None
+        prop_id = po_prop.id
+        db.close()
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            payload = {
+                "decision": "approved",
+                "approver_role": "Operations Director",
+                "approver_name": "Rajiv Kapoor",
+                "notes": "Emergency recall buffer approved.",
+            }
+            res = await client.post(f"/api/approvals/{prop_id}/action", json=payload)
+            assert res.status_code == 200
+
+            db2 = SessionLocal()
+            try:
+                po = db2.query(PurchaseOrder).first()
+                assert po is not None
+                assert po.product.sku == "MED-AMX-625"
+                assert po.quantity == 600
+                assert po.supplier.name == "Cipla Direct Formulations"
+            finally:
+                db2.close()
+    finally:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_quarantine_action_updates_batch_status_and_movement():
+    """Verify approving quarantine order sets status to quarantine and records movement."""
+    db = SessionLocal()
+    try:
+        orchestrator = AgentOrchestrator(db)
+        run = orchestrator.run_task("Investigate a cold-chain temperature excursion.")
+        q_prop = (
+            db.query(ActionProposal)
+            .filter_by(run_id=run.id, action_type="quarantine_order")
+            .first()
+        )
+        assert q_prop is not None
+        prop_id = q_prop.id
+
+        b4019 = db.query(BatchInventory).filter_by(batch_number="B4019").first()
+        assert b4019.status == "active"
+        db.close()
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            payload = {
+                "decision": "approved",
+                "approver_role": "QA Compliance Officer",
+                "approver_name": "Meera Joshi",
+                "notes": "Cold storage excursion quarantine lock applied.",
+            }
+            res = await client.post(f"/api/approvals/{prop_id}/action", json=payload)
+            assert res.status_code == 200
+
+            db2 = SessionLocal()
+            try:
+                b4019_updated = db2.query(BatchInventory).filter_by(batch_number="B4019").first()
+                assert b4019_updated.status == "quarantine"
+
+                mov = (
+                    db2.query(StockMovement)
+                    .filter_by(batch_id=b4019_updated.id, movement_type="quarantine_hold")
+                    .first()
+                )
+                assert mov is not None
+            finally:
+                db2.close()
+    finally:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_stock_allocation_action_and_boundary_failure():
+    """Verify approving stock allocation updates available stock and rejects over-allocation."""
+    db = SessionLocal()
+    try:
+        orchestrator = AgentOrchestrator(db)
+        run = orchestrator.run_task("Investigate recall Batch B2231.")
+        alloc_prop = (
+            db.query(ActionProposal)
+            .filter_by(run_id=run.id, action_type="stock_allocation")
+            .first()
+        )
+        assert alloc_prop is not None
+        prop_id = alloc_prop.id
+
+        b2240 = db.query(BatchInventory).filter_by(batch_number="B2240").first()
+        assert b2240.available_quantity == 400
+        db.close()
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            payload = {
+                "decision": "approved",
+                "approver_role": "Lead Pharmacist",
+                "approver_name": "Dr. Ananya Sharma, R.Ph",
+                "notes": "Allocating 400 units of B2240 (150 to hospitals, 250 to chemists).",
+            }
+            res = await client.post(f"/api/approvals/{prop_id}/action", json=payload)
+            assert res.status_code == 200
+
+            db2 = SessionLocal()
+            try:
+                b2240_updated = db2.query(BatchInventory).filter_by(batch_number="B2240").first()
+                # 400 units were allocated -> available quantity is now 0
+                assert b2240_updated.available_quantity == 0
+
+                mov = (
+                    db2.query(StockMovement)
+                    .filter_by(batch_id=b2240_updated.id, movement_type="allocation")
+                    .first()
+                )
+                assert mov is not None
+                assert mov.quantity == -400
+
+                # Now create another proposal attempting to allocate 100 units from B2240 (which has 0 available)
+                p_over = ToolRegistry.create_action_proposal(
+                    db2,
+                    run_id=run.id,
+                    action_type="stock_allocation",
+                    title="Allocate 100 Units Batch B2240",
+                    description="Excess allocation attempt.",
+                    rationale="Testing boundary rejection.",
+                    supporting_evidence={"batch_number": "B2240", "quantity": 100},
+                    target_entity="Chemists",
+                    expected_impact="Should fail boundary check.",
+                )
+                over_id = p_over["proposal_id"]
+            finally:
+                db2.close()
+
+            # Attempting to approve over-allocation must fail with HTTP 400
+            res_fail = await client.post(f"/api/approvals/{over_id}/action", json=payload)
+            assert res_fail.status_code == 400
+            assert "exceeds available stock" in res_fail.json()["detail"]
+
+            # DB remains unmutated
+            db3 = SessionLocal()
+            try:
+                b2240_after_fail = db3.query(BatchInventory).filter_by(batch_number="B2240").first()
+                assert b2240_after_fail.available_quantity == 0
+            finally:
+                db3.close()
+    finally:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_rejected_proposal_does_not_mutate_database():
+    """Verify rejected proposals are recorded with rejection notes and do not mutate inventory or create POs."""
+    db = SessionLocal()
+    try:
+        orchestrator = AgentOrchestrator(db)
+        run = orchestrator.run_task("Investigate recall Batch B2231.")
+        hold_prop = (
+            db.query(ActionProposal)
+            .filter_by(run_id=run.id, action_type="dispatch_hold")
+            .first()
+        )
+        po_prop = (
+            db.query(ActionProposal)
+            .filter_by(run_id=run.id, action_type="purchase_order")
+            .first()
+        )
+        hold_id = hold_prop.id
+        po_id = po_prop.id
+        db.close()
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # Reject dispatch hold
+            payload_reject_hold = {
+                "decision": "rejected",
+                "approver_role": "QA Compliance Officer",
+                "approver_name": "Meera Joshi",
+                "notes": "Rejected: Batch certificate was validated as clean.",
+            }
+            res_hold = await client.post(f"/api/approvals/{hold_id}/action", json=payload_reject_hold)
+            assert res_hold.status_code == 200
+            data_hold = res_hold.json()
+            assert data_hold["status"] == "rejected"
+            assert "Meera Joshi" in data_hold["approved_by"]
+            assert "Batch certificate was validated" in data_hold["rejection_reason"]
+
+            # Reject PO
+            payload_reject_po = {
+                "decision": "rejected",
+                "approver_role": "Operations Director",
+                "approver_name": "Rajiv Kapoor",
+                "notes": "PO cancelled due to existing local inventory buffer.",
+            }
+            res_po = await client.post(f"/api/approvals/{po_id}/action", json=payload_reject_po)
+            assert res_po.status_code == 200
+            assert res_po.json()["status"] == "rejected"
+
+            # Verify database was NOT mutated
+            db2 = SessionLocal()
+            try:
+                b2231 = db2.query(BatchInventory).filter_by(batch_number="B2231").first()
+                assert b2231.status == "active"  # NOT dispatch_hold!
+                assert db2.query(PurchaseOrder).count() == 0  # No PO created!
+            finally:
+                db2.close()
+    finally:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_invalid_and_malformed_proposals_rejected_without_mutation():
+    """Verify invalid batch, missing targets, or MOQ violations return 400 and leave DB unmutated."""
+    db = SessionLocal()
+    try:
+        # 1. Non-existent batch
+        p_invalid_batch = ToolRegistry.create_action_proposal(
+            db,
+            run_id="run-test-invalid",
+            action_type="dispatch_hold",
+            title="Dispatch Hold: Batch B9999",
+            description="Targeting non-existent batch.",
+            rationale="Test non-existent batch.",
+            supporting_evidence={"batch_number": "B9999"},
+            target_entity="Warehouse / Batch B9999",
+            expected_impact="Should be rejected.",
+        )
+        id_invalid_batch = p_invalid_batch["proposal_id"]
+
+        # 2. Invalid PO quantity <= 0
+        p_invalid_qty = ToolRegistry.create_action_proposal(
+            db,
+            run_id="run-test-invalid",
+            action_type="purchase_order",
+            title="PO for Amoxicillin",
+            description="Negative quantity.",
+            rationale="Test invalid quantity.",
+            supporting_evidence={"sku": "MED-AMX-625", "quantity": -50},
+            target_entity="Cipla Direct",
+            expected_impact="Should be rejected.",
+        )
+        id_invalid_qty = p_invalid_qty["proposal_id"]
+
+        # 3. PO violating supplier MOQ (100 units when Cipla MOQ is 500)
+        p_moq_viol = ToolRegistry.create_action_proposal(
+            db,
+            run_id="run-test-invalid",
+            action_type="purchase_order",
+            title="PO below MOQ",
+            description="Ordering 100 units.",
+            rationale="Test MOQ violation.",
+            supporting_evidence={
+                "sku": "MED-AMX-625",
+                "supplier": "Cipla Direct Formulations",
+                "quantity": 100,
+            },
+            target_entity="Cipla Direct",
+            expected_impact="Should be rejected.",
+        )
+        id_moq_viol = p_moq_viol["proposal_id"]
+        db.close()
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            payload = {
+                "decision": "approved",
+                "approver_role": "Lead Pharmacist",
+                "approver_name": "Dr. Ananya Sharma",
+                "notes": "Testing invalid proposals.",
+            }
+
+            # 1. Fails because B9999 does not exist
+            r1 = await client.post(f"/api/approvals/{id_invalid_batch}/action", json=payload)
+            assert r1.status_code == 400
+            assert "not found" in r1.json()["detail"].lower()
+
+            # 2. Fails because quantity <= 0
+            r2 = await client.post(f"/api/approvals/{id_invalid_qty}/action", json=payload)
+            assert r2.status_code == 400
+            assert "greater than zero" in r2.json()["detail"].lower()
+
+            # 3. Fails because quantity violates MOQ
+            r3 = await client.post(f"/api/approvals/{id_moq_viol}/action", json=payload)
+            assert r3.status_code == 400
+            assert "minimum order quantity" in r3.json()["detail"].lower()
+
+            # Verify proposals remain pending_review and no PO was created
+            db2 = SessionLocal()
+            try:
+                assert db2.query(PurchaseOrder).count() == 0
+                for pid in [id_invalid_batch, id_invalid_qty, id_moq_viol]:
+                    p = db2.query(ActionProposal).filter_by(id=pid).first()
+                    assert p.status == "pending_review"
+            finally:
+                db2.close()
+    finally:
+        pass

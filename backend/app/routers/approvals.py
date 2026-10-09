@@ -70,6 +70,22 @@ def act_on_proposal(
     if decision not in ["approved", "rejected"]:
         raise HTTPException(status_code=400, detail="Decision must be 'approved' or 'rejected'.")
 
+    # If approving, validate targets, constraints, and current DB state before mutating
+    if decision == "approved":
+        try:
+            ToolRegistry.validate_and_execute_proposal(
+                db=db,
+                proposal=prop,
+                approver_name=payload.approver_name,
+                approver_role=payload.approver_role,
+            )
+        except ValueError as ve:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(ve))
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to execute approved action: {str(e)}")
+
     # Record decision audit
     audit = ApprovalDecision(
         proposal_id=prop.id,
@@ -86,37 +102,6 @@ def act_on_proposal(
     prop.approved_at = now
     if decision == "rejected":
         prop.rejection_reason = payload.notes or "Rejected by authorized reviewer."
-
-    # Execute simulated consequential operational actions if approved
-    if decision == "approved":
-        if prop.action_type == "dispatch_hold":
-            # Target B2231
-            batch = db.query(BatchInventory).filter_by(batch_number="B2231").first()
-            if batch:
-                batch.status = "dispatch_hold"
-
-        elif prop.action_type == "quarantine_order":
-            # Target B4019
-            batch = db.query(BatchInventory).filter_by(batch_number="B4019").first()
-            if batch:
-                batch.status = "quarantine"
-
-        elif prop.action_type == "purchase_order":
-            # Create actual PurchaseOrder record
-            sup = db.query(Supplier).first()
-            prod = db.query(Product).filter_by(sku="MED-AMX-625").first()
-            if sup and prod:
-                po = PurchaseOrder(
-                    po_number=f"PO-SIM-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                    supplier_id=sup.id,
-                    product_id=prod.id,
-                    quantity=600,
-                    unit_price=prod.unit_price,
-                    status="submitted",
-                    urgency="urgent",
-                    notes=f"Emergency recall replenishment authorized by {payload.approver_name}.",
-                )
-                db.add(po)
 
     db.commit()
     db.refresh(prop)
