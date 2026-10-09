@@ -1,0 +1,81 @@
+:root {
+  /* Warm off-white background palette */
+  --bg-page: #fbf9f5;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-subtle: #f5f2eb;
+  --bg-subtle: #f2eee6;
+  --bg-input: #ffffff;
+  --bg-tag: #eee9df;
+
+  /* Terracotta / Rust-Red Accent */
+  --accent-terracotta: #c05638;
+  --accent-terracotta-dark: #a84428;
+  --accent-terracotta-light: #fbeee9;
+  --accent-terracotta-border: #f2cbbe;
+
+  /* Charcoal Typography */
+  --text-main: #1e242b;
+  --text-muted: #56616d;
+  --text-dim: #7f8a96;
+  --text-inverse: #ffffff;
+
+  /* Borders & Shadows */
+  --border-subtle: #e5dfd5;
+  --border-medium: #d6cfc3;
+  --border-focus: #c05638;
+  --shadow-sm: 0 1px 2px rgba(30, 36, 43, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(30, 36, 43, 0.08), 0 2px 4px -1px rgba(30, 36, 43, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(30, 36, 43, 0.08), 0 4px 6px -2px rgba(30, 36, 43, 0.04);
+
+  /* Status Badges */
+  --status-critical-bg: #fee2e2;
+  --status-critical-text: #991b1b;
+  --status-critical-border: #fecaca;
+
+  --status-warning-bg: #fef3c7;
+  --status-warning-text: #92400e;
+  --status-warning-border: #fde68a;
+
+  --status-success-bg: #dcfce7;
+  --status-success-text: #166534;
+  --status-success-border: #bbf7d0;
+
+  --status-info-bg: #e0f2fe;
+  --status-info-text: #075985;
+  --status-info-border: #bae6fd;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, Consolas, monospace;
+
+  font-family: var(--font-sans);
+  background-color: var(--bg-page);
+  color: var(--text-main);
+  line-height: 1.5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--bg-page);
+  color: var(--text-main);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
