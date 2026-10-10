@@ -98,6 +98,24 @@ class BatchDetailSchema(BaseModel):
     total_dispatched: int
 
 
+class CreateDispatchRequest(BaseModel):
+    batch_number: str = Field(..., description="Batch number to dispatch from")
+    customer_code: str = Field(..., description="Customer receiving stock")
+    quantity: int = Field(..., gt=0, description="Number of units to dispatch")
+    notes: Optional[str] = None
+
+
+class TraceabilityResponse(BaseModel):
+    batch_number: str
+    product_name: str
+    product_sku: str
+    remaining_warehouse_stock: int
+    total_dispatched_quantity: int
+    total_recipients_count: int
+    breakdown: Dict[str, Any]
+    recipients: List[Dict[str, Any]]
+
+
 # ---------------------------------------------------------------------------
 # Action Proposals & Approvals
 # ---------------------------------------------------------------------------
@@ -195,3 +213,168 @@ class AgentRunDetailSchema(BaseModel):
     verification: Optional[Any] = None
     final_report: Optional[FinalReportSchema] = None
     proposals: List[ActionProposalSchema] = []
+
+
+# ---------------------------------------------------------------------------
+# Create & Update Schemas for Operational Entity Management
+# ---------------------------------------------------------------------------
+class CreateBatchRequest(BaseModel):
+    batch_number: str
+    product_id: int
+    warehouse_id: int
+    available_quantity: int
+    initial_quantity: Optional[int] = None
+    manufacturing_date: Optional[str] = None
+    expiry_date: str
+    status: str = "active"  # active, dispatch_hold, quarantine, recalled
+    storage_condition: str = "Controlled Room Temp (15-25°C)"
+
+
+class UpdateBatchRequest(BaseModel):
+    available_quantity: Optional[int] = None
+    status: Optional[str] = None
+    warehouse_id: Optional[int] = None
+    expiry_date: Optional[str] = None
+    storage_condition: Optional[str] = None
+
+
+class CreateProductRequest(BaseModel):
+    sku: str
+    name: str
+    molecule: str
+    brand: str
+    category: str
+    storage_range: str = "15°C - 25°C"
+    is_critical: bool = False
+    unit_price: float = 0.0
+    unit_of_measure: str = "Pack of 10"
+    min_safety_stock: int = 100
+
+
+class UpdateProductRequest(BaseModel):
+    name: Optional[str] = None
+    molecule: Optional[str] = None
+    brand: Optional[str] = None
+    category: Optional[str] = None
+    storage_range: Optional[str] = None
+    is_critical: Optional[bool] = None
+    unit_price: Optional[float] = None
+    unit_of_measure: Optional[str] = None
+    min_safety_stock: Optional[int] = None
+
+
+class CustomerSchema(BaseModel):
+    id: int
+    code: str
+    name: str
+    customer_type: str
+    priority_tier: int
+    contact_email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CreateCustomerRequest(BaseModel):
+    code: str
+    name: str
+    customer_type: str  # hospital, chemist
+    priority_tier: int = 2  # 1 for hospital/critical, 2 for retail
+    contact_email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+
+
+class UpdateCustomerRequest(BaseModel):
+    name: Optional[str] = None
+    customer_type: Optional[str] = None
+    priority_tier: Optional[int] = None
+    contact_email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+
+
+class WarehouseSchema(BaseModel):
+    id: int
+    code: str
+    name: str
+    location: str
+    cold_storage_available: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CreateWarehouseRequest(BaseModel):
+    code: str
+    name: str
+    location: str
+    cold_storage_available: bool = False
+
+
+class TemperatureLogSchema(BaseModel):
+    id: int
+    warehouse_id: int
+    warehouse_name: str
+    cold_room_unit: str
+    recorded_at: str
+    recorded_temperature_celsius: float
+    permitted_range: str
+    duration_minutes: int
+    thermal_severity: str
+    notes: Optional[str] = None
+
+
+class CreateTemperatureLogRequest(BaseModel):
+    warehouse_id: int
+    cold_room_unit: str
+    recorded_temperature_celsius: float
+    permitted_range: str = "2°C - 8°C"
+    duration_minutes: int = 0
+    thermal_severity: str = "Normal"  # Normal, Critical, Warning
+    notes: Optional[str] = None
+
+
+class PurchaseOrderSchema(BaseModel):
+    id: int
+    po_number: str
+    product_name: str
+    product_sku: str
+    supplier_name: str
+    quantity: int
+    unit_price: float
+    total_amount: float
+    status: str
+    order_date: str
+    expected_delivery_date: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CreatePurchaseOrderRequest(BaseModel):
+    product_id: int
+    supplier_id: Optional[int] = None
+    quantity: int
+    unit_price: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class UpdatePurchaseOrderStatusRequest(BaseModel):
+    status: str
+    notes: Optional[str] = None
+
+
+class CreateCustomProposalRequest(BaseModel):
+    action_type: str  # dispatch_hold, quarantine_order, purchase_order, vendor_return_rma, customer_notice
+    title: str
+    description: str
+    rationale: str
+    target_entity: str
+    expected_impact: str
+
+
+class UpdateProposalRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    rationale: Optional[str] = None
+    expected_impact: Optional[str] = None
+

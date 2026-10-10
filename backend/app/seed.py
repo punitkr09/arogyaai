@@ -23,10 +23,29 @@ def seed_database(db: Session = None):
     # Ensure tables are created
     Base.metadata.create_all(bind=engine)
 
+    # Lightweight migration check for SQLite
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            cursor = conn.execute(text("PRAGMA table_info(agent_runs)"))
+            cols = [row[1] for row in cursor.fetchall()]
+            if cols and "intent_json" not in cols:
+                conn.execute(text("ALTER TABLE agent_runs ADD COLUMN intent_json JSON"))
+                conn.commit()
+
+            cursor = conn.execute(text("PRAGMA table_info(customers)"))
+            cols = [row[1] for row in cursor.fetchall()]
+            if cols and "priority_tier" not in cols:
+                conn.execute(text("ALTER TABLE customers ADD COLUMN priority_tier INTEGER DEFAULT 2"))
+                conn.commit()
+    except Exception:
+        pass
+
     close_session = False
     if db is None:
         db = SessionLocal()
         close_session = True
+
 
     try:
         # Check if already seeded with Batch B2231
@@ -514,6 +533,7 @@ def seed_database(db: Session = None):
 
 def reset_database():
     """Drops all tables and re-seeds cleanly."""
+    engine.dispose()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     seed_database()

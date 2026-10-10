@@ -84,7 +84,7 @@ export function OperationsDashboard({
               Prioritized operational exceptions identified by continuous telemetry and inventory reconciliation.
             </p>
           </div>
-          <span className="badge badge-demo">
+          <span className="badge badge-online">
             {summary.attention_items.length} Active Items
           </span>
         </div>
@@ -121,3 +121,4 @@ export function OperationsDashboard({
     </div>
   )
 }
+

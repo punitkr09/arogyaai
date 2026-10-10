@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { ActionProposal } from '../types/arogya'
-import { fetchProposals, actOnProposal } from '../services/api'
+import type { ActionProposal, CreateCustomProposalInput, UpdateProposalInput } from '../types/arogya'
+import { fetchProposals, actOnProposal, createCustomProposal, updateProposal } from '../services/api'
 
 interface ApprovalCenterViewProps {
   onApprovalSuccess?: () => void
@@ -11,7 +11,7 @@ export function ApprovalCenterView({ onApprovalSuccess }: ApprovalCenterViewProp
   const [loading, setLoading] = useState<boolean>(true)
   const [statusFilter, setStatusFilter] = useState<string>('pending_review')
 
-  // Action Modal State
+  // Action Modal State (Authorize / Reject)
   const [activeModalProposal, setActiveModalProposal] = useState<ActionProposal | null>(null)
   const [actionType, setActionType] = useState<'approved' | 'rejected'>('approved')
   const [approverRole, setApproverRole] = useState<string>('Lead Pharmacist (R.Ph)')
@@ -19,6 +19,23 @@ export function ApprovalCenterView({ onApprovalSuccess }: ApprovalCenterViewProp
   const [notes, setNotes] = useState<string>('Reviewed trace records and verified 25 recipient coverage.')
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
+
+  // Create Custom Proposal Modal State
+  const [showCreateModal, setShowCreateModal] = useState<boolean>(false)
+  const [newProposalData, setNewProposalData] = useState<CreateCustomProposalInput>({
+    action_type: 'quarantine_order',
+    title: '',
+    description: '',
+    rationale: '',
+    target_entity: '',
+    expected_impact: '',
+  })
+  const [submittingCreate, setSubmittingCreate] = useState<boolean>(false)
+
+  // Edit Proposal Modal State
+  const [editingProposal, setEditingProposal] = useState<ActionProposal | null>(null)
+  const [editProposalData, setEditProposalData] = useState<UpdateProposalInput>({})
+  const [submittingEdit, setSubmittingEdit] = useState<boolean>(false)
 
   const loadProposals = useCallback(async () => {
     setLoading(true)
@@ -74,9 +91,60 @@ export function ApprovalCenterView({ onApprovalSuccess }: ApprovalCenterViewProp
     }
   }
 
+  const handleCreateProposal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmittingCreate(true)
+    setFeedbackMsg(null)
+    try {
+      const created = await createCustomProposal(newProposalData)
+      setShowCreateModal(false)
+      setFeedbackMsg(`✓ Proposal #${created.id} staged at approval gate for review!`)
+      setNewProposalData({
+        action_type: 'quarantine_order',
+        title: '',
+        description: '',
+        rationale: '',
+        target_entity: '',
+        expected_impact: '',
+      })
+      loadProposals()
+      if (onApprovalSuccess) onApprovalSuccess()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to create proposal')
+    } finally {
+      setSubmittingCreate(false)
+    }
+  }
+
+  const handleOpenEditProposal = (p: ActionProposal) => {
+    setEditingProposal(p)
+    setEditProposalData({
+      title: p.title,
+      description: p.description,
+      rationale: p.rationale,
+      expected_impact: p.expected_impact,
+    })
+  }
+
+  const handleUpdateProposal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingProposal) return
+    setSubmittingEdit(true)
+    try {
+      const updated = await updateProposal(editingProposal.id, editProposalData)
+      setEditingProposal(null)
+      setFeedbackMsg(`✓ Proposal #${updated.id} updated!`)
+      loadProposals()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update proposal')
+    } finally {
+      setSubmittingEdit(false)
+    }
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
           <h2 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.2rem' }}>
             Operations & Compliance Approval Center
@@ -86,35 +154,45 @@ export function ApprovalCenterView({ onApprovalSuccess }: ApprovalCenterViewProp
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <button
-            className={`tab-btn ${statusFilter === 'pending_review' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('pending_review')}
-            style={{ padding: '0.35rem 0.85rem', fontSize: '0.82rem' }}
+            className="btn-primary"
+            onClick={() => setShowCreateModal(true)}
+            style={{ fontSize: '0.82rem', padding: '0.4rem 0.95rem' }}
           >
-            Pending Review
+            + Create Action Proposal
           </button>
-          <button
-            className={`tab-btn ${statusFilter === 'approved' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('approved')}
-            style={{ padding: '0.35rem 0.85rem', fontSize: '0.82rem' }}
-          >
-            Approved
-          </button>
-          <button
-            className={`tab-btn ${statusFilter === 'rejected' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('rejected')}
-            style={{ padding: '0.35rem 0.85rem', fontSize: '0.82rem' }}
-          >
-            Rejected
-          </button>
-          <button
-            className={`tab-btn ${statusFilter === '' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('')}
-            style={{ padding: '0.35rem 0.85rem', fontSize: '0.82rem' }}
-          >
-            All History
-          </button>
+
+          <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <button
+              className={`tab-btn ${statusFilter === 'pending_review' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('pending_review')}
+              style={{ padding: '0.35rem 0.85rem', fontSize: '0.82rem' }}
+            >
+              Pending Review
+            </button>
+            <button
+              className={`tab-btn ${statusFilter === 'approved' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('approved')}
+              style={{ padding: '0.35rem 0.85rem', fontSize: '0.82rem' }}
+            >
+              Approved
+            </button>
+            <button
+              className={`tab-btn ${statusFilter === 'rejected' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('rejected')}
+              style={{ padding: '0.35rem 0.85rem', fontSize: '0.82rem' }}
+            >
+              Rejected
+            </button>
+            <button
+              className={`tab-btn ${statusFilter === '' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('')}
+              style={{ padding: '0.35rem 0.85rem', fontSize: '0.82rem' }}
+            >
+              All
+            </button>
+          </div>
         </div>
       </div>
 
@@ -233,13 +311,22 @@ export function ApprovalCenterView({ onApprovalSuccess }: ApprovalCenterViewProp
               </div>
 
               {p.status === 'pending_review' && (
-                <div className="prop-actions">
-                  <button className="btn-approve" onClick={() => handleOpenActionModal(p, 'approved')}>
-                    ✓ Sign-Off & Execute
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '1rem' }}>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => handleOpenEditProposal(p)}
+                    style={{ width: '100%', fontSize: '0.78rem', padding: '0.35rem' }}
+                  >
+                    ✎ Edit Details
                   </button>
-                  <button className="btn-reject" onClick={() => handleOpenActionModal(p, 'rejected')}>
-                    ✕ Reject
-                  </button>
+                  <div className="prop-actions">
+                    <button className="btn-approve" onClick={() => handleOpenActionModal(p, 'approved')}>
+                      ✓ Sign-Off & Execute
+                    </button>
+                    <button className="btn-reject" onClick={() => handleOpenActionModal(p, 'rejected')}>
+                      ✕ Reject
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -314,6 +401,211 @@ export function ApprovalCenterView({ onApprovalSuccess }: ApprovalCenterViewProp
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Custom Proposal Modal */}
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+              Create Operational Action Proposal
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Stage an operational intervention for Qualified Person governance and authorization.
+            </p>
+
+            <form onSubmit={handleCreateProposal} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Action Type *
+                </label>
+                <select
+                  className="select-filter"
+                  style={{ width: '100%' }}
+                  value={newProposalData.action_type}
+                  onChange={(e) => setNewProposalData({ ...newProposalData, action_type: e.target.value })}
+                >
+                  <option value="quarantine_order">Quarantine Order (Physical Isolation Lock)</option>
+                  <option value="dispatch_hold">Dispatch Hold (Outward Freeze)</option>
+                  <option value="purchase_order">Emergency Purchase Order (Replenishment)</option>
+                  <option value="vendor_return_rma">Vendor Return RMA (Credit Salvage)</option>
+                  <option value="customer_notice">Customer Recall Communication</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Proposal Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Preventive Quarantine of Batch B3011 in North Depot"
+                  className="search-input"
+                  style={{ width: '100%' }}
+                  value={newProposalData.title}
+                  onChange={(e) => setNewProposalData({ ...newProposalData, title: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Target Entity (Batch / Facility / Supplier) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Batch B3011 / North Cold Facility"
+                  className="search-input"
+                  style={{ width: '100%' }}
+                  value={newProposalData.target_entity}
+                  onChange={(e) => setNewProposalData({ ...newProposalData, target_entity: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Operational Description *
+                </label>
+                <textarea
+                  required
+                  className="prompt-textarea"
+                  style={{ minHeight: 60 }}
+                  placeholder="Detail the exact operational containment or dispatch freeze step..."
+                  value={newProposalData.description}
+                  onChange={(e) => setNewProposalData({ ...newProposalData, description: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Clinical / Regulatory Rationale *
+                  </label>
+                  <textarea
+                    required
+                    className="prompt-textarea"
+                    style={{ minHeight: 50 }}
+                    placeholder="e.g. Temperature breach above 8°C"
+                    value={newProposalData.rationale}
+                    onChange={(e) => setNewProposalData({ ...newProposalData, rationale: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Expected Impact *
+                  </label>
+                  <textarea
+                    required
+                    className="prompt-textarea"
+                    style={{ minHeight: 50 }}
+                    placeholder="e.g. Prevents patient exposure"
+                    value={newProposalData.expected_impact}
+                    onChange={(e) => setNewProposalData({ ...newProposalData, expected_impact: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={submittingCreate}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={submittingCreate}>
+                  {submittingCreate ? 'Staging...' : 'Stage for Approval'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Proposal Modal */}
+      {editingProposal && (
+        <div className="modal-overlay" onClick={() => setEditingProposal(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+              Edit Action Proposal #{editingProposal.id}
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Refine proposal language or regulatory justifications before authorizing.
+            </p>
+
+            <form onSubmit={handleUpdateProposal} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Proposal Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="search-input"
+                  style={{ width: '100%' }}
+                  value={editProposalData.title || ''}
+                  onChange={(e) => setEditProposalData({ ...editProposalData, title: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Description
+                </label>
+                <textarea
+                  required
+                  className="prompt-textarea"
+                  style={{ minHeight: 65 }}
+                  value={editProposalData.description || ''}
+                  onChange={(e) => setEditProposalData({ ...editProposalData, description: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Rationale
+                </label>
+                <textarea
+                  required
+                  className="prompt-textarea"
+                  style={{ minHeight: 50 }}
+                  value={editProposalData.rationale || ''}
+                  onChange={(e) => setEditProposalData({ ...editProposalData, rationale: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Expected Impact
+                </label>
+                <textarea
+                  required
+                  className="prompt-textarea"
+                  style={{ minHeight: 50 }}
+                  value={editProposalData.expected_impact || ''}
+                  onChange={(e) => setEditProposalData({ ...editProposalData, expected_impact: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setEditingProposal(null)}
+                  disabled={submittingEdit}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={submittingEdit}>
+                  {submittingEdit ? 'Saving...' : 'Save Updates'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

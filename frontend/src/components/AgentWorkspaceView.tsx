@@ -64,10 +64,17 @@ export function AgentWorkspaceView({
         {/* Template Quick Chips */}
         <div>
           <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-            DEMO TASK SCENARIOS:
+            OPERATIONAL INVESTIGATION PROMPTS:
           </span>
           <div className="templates-row">
-            {templates.map((tpl) => (
+            {(templates.length > 0 ? templates : [
+              { id: 't1', title: 'Recall Batch B2231', prompt: 'Investigate recall Batch B2231 and prepare response options.' },
+              { id: 't2', title: 'Trace B2231 Recipients', prompt: 'Show me everywhere batch B2231 went and identify affected hospitals.' },
+              { id: 't3', title: 'Cold-Chain Excursions', prompt: 'Which batches are at risk because their cold room became too warm?' },
+              { id: 't4', title: 'Expiring Stock & Returns', prompt: 'Which batches are expiring in 90 days and what supplier returns can we make?' },
+              { id: 't5', title: 'Replacement Coverage', prompt: 'Can replacement batch B2232 cover the recall of B2231 and normal demand?' },
+              { id: 't6', title: 'Critical Drug Shortages', prompt: 'Analyze critical drug inventory runway and identify potential shortages.' },
+            ]).map((tpl) => (
               <button
                 key={tpl.id}
                 className="template-chip"
@@ -77,12 +84,13 @@ export function AgentWorkspaceView({
                 }}
                 disabled={running}
               >
-                {tpl.id === 'tpl-recall' ? '🔴' : tpl.id === 'tpl-expiry' ? '🟡' : tpl.id === 'tpl-cold' ? '❄️' : '⚠️'}{' '}
+                {tpl.id.includes('recall') || tpl.id === 't1' ? '🔴' : tpl.id.includes('cold') || tpl.id === 't3' ? '❄️' : tpl.id.includes('expiry') || tpl.id === 't4' ? '🟡' : '📦'}{' '}
                 {tpl.title}
               </button>
             ))}
           </div>
         </div>
+
 
         {/* Prompt Input & Execute */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -174,8 +182,9 @@ export function AgentWorkspaceView({
               <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
                 Live Execution Audit Trail ({activeRun.events.length} events)
               </h3>
-              <span className="badge badge-demo">Database Logged</span>
+              <span className="badge badge-online">Database Logged</span>
             </div>
+
 
             <div className="events-stream">
               {activeRun.events.map((ev, i) => (

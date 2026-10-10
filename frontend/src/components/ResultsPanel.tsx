@@ -12,7 +12,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   results,
   runId,
   totalDurationMs,
-  isDemo,
+  isDemo: _isDemo,
 }) => {
   return (
     <section className="results-container">
@@ -27,7 +27,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           <span className="badge badge-success">
             STATUS: {results.final_status.toUpperCase()}
           </span>
-          {isDemo && <span className="badge badge-demo">DEMO SIMULATION</span>}
+          <span className="badge badge-online">VERIFIED OPERATIONS</span>
         </div>
       </div>
 

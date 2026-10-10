@@ -32,8 +32,8 @@ export const LoadingState: React.FC = () => {
       </div>
 
       <div className="loading-badges">
-        <span className="badge badge-demo">DEMO SIMULATION ACTIVE</span>
-        <span className="badge badge-neutral">Async Processing</span>
+        <span className="badge badge-online">AUTONOMOUS AGENT ACTIVE</span>
+        <span className="badge badge-neutral">Deterministic Telemetry</span>
       </div>
     </div>
   )

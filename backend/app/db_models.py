@@ -96,6 +96,7 @@ class Customer(Base):
     address = Column(String(255), nullable=True)
     license_number = Column(String(64), nullable=True)
     compliance_verified = Column(Boolean, default=True)
+    priority_tier = Column(Integer, default=2)  # 1: Emergency/Hospital, 2: Standard Retail/Chemist
 
     dispatches = relationship("Dispatch", back_populates="customer")
 
@@ -187,7 +188,8 @@ class AgentRun(Base):
     id = Column(String(64), primary_key=True, index=True)
     prompt = Column(Text, nullable=False)
     incident_id = Column(Integer, ForeignKey("incidents.id"), nullable=True)
-    state = Column(String(32), default="queued")  # queued, planning, executing, verifying, awaiting_approval, completed, failed
+    state = Column(String(32), default="queued")  # queued, intake, planning, executing, analyzing, verifying, awaiting_approval, completed, failed
+    intent_json = Column(Text, nullable=True)
     plan_json = Column(Text, nullable=True)
     current_step = Column(Integer, default=0)
     evidence_json = Column(Text, nullable=True)

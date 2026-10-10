@@ -1,6 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { BatchSummary, BatchDetail } from '../types/arogya'
-import { fetchBatches, fetchBatchDetails } from '../services/api'
+import type {
+  BatchSummary,
+  BatchDetail,
+  Product,
+  Warehouse,
+  CreateBatchInput,
+  UpdateBatchInput,
+  CreateProductInput,
+} from '../types/arogya'
+import {
+  fetchBatches,
+  fetchBatchDetails,
+  fetchProducts,
+  fetchWarehouses,
+  createBatch,
+  updateBatch,
+  createProduct,
+} from '../services/api'
 
 interface BatchExplorerProps {
   onInvestigateBatch?: (batchNumber: string) => void
@@ -13,10 +29,50 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [warehouseFilter, setWarehouseFilter] = useState<string>('')
 
+  // Reference data
+  const [products, setProducts] = useState<Product[]>([])
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+
   // Detail Modal state
   const [selectedBatchNumber, setSelectedBatchNumber] = useState<string | null>(null)
   const [detail, setDetail] = useState<BatchDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState<boolean>(false)
+
+  // Add Batch Modal state
+  const [showAddBatchModal, setShowAddBatchModal] = useState<boolean>(false)
+  const [newBatchData, setNewBatchData] = useState<CreateBatchInput>({
+    batch_number: '',
+    product_id: 1,
+    warehouse_id: 1,
+    available_quantity: 500,
+    initial_quantity: 500,
+    expiry_date: '2027-06-30',
+    status: 'active',
+    storage_condition: 'Controlled Room Temp (15-25°C)',
+  })
+  const [addBatchSubmitting, setAddBatchSubmitting] = useState<boolean>(false)
+
+  // Edit Batch Modal state
+  const [editingBatch, setEditingBatch] = useState<BatchSummary | null>(null)
+  const [editBatchData, setEditBatchData] = useState<UpdateBatchInput>({})
+  const [editBatchSubmitting, setEditBatchSubmitting] = useState<boolean>(false)
+
+  // Add Product Modal state
+  const [showAddProductModal, setShowAddProductModal] = useState<boolean>(false)
+  const [newProductData, setNewProductData] = useState<CreateProductInput>({
+    sku: '',
+    name: '',
+    molecule: '',
+    brand: '',
+    category: 'Antibiotic',
+    storage_range: '15°C - 25°C',
+    is_critical: false,
+    unit_price: 25.0,
+    min_safety_stock: 100,
+  })
+  const [addProductSubmitting, setAddProductSubmitting] = useState<boolean>(false)
+
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
 
   const loadBatches = useCallback(async () => {
     setLoading(true)
@@ -34,6 +90,26 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
     loadBatches()
   }, [loadBatches])
 
+  useEffect(() => {
+    fetchProducts()
+      .then((p) => {
+        setProducts(p)
+        if (p.length > 0) {
+          setNewBatchData((prev) => ({ ...prev, product_id: p[0].id }))
+        }
+      })
+      .catch(() => {})
+
+    fetchWarehouses()
+      .then((w) => {
+        setWarehouses(w)
+        if (w.length > 0) {
+          setNewBatchData((prev) => ({ ...prev, warehouse_id: w[0].id }))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   const handleOpenDetail = async (batchNumber: string) => {
     setSelectedBatchNumber(batchNumber)
     setDetailLoading(true)
@@ -47,13 +123,144 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
     }
   }
 
-  const handleCloseModal = () => {
+  const handleCloseDetailModal = () => {
     setSelectedBatchNumber(null)
     setDetail(null)
   }
 
+  // Handle Add Batch
+  const handleCreateBatch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAddBatchSubmitting(true)
+    setActionFeedback(null)
+    try {
+      const created = await createBatch(newBatchData)
+      setShowAddBatchModal(false)
+      setActionFeedback(`✓ Batch ${created.batch_number} created successfully with ${created.available_quantity} units!`)
+      setNewBatchData({
+        batch_number: '',
+        product_id: products[0]?.id || 1,
+        warehouse_id: warehouses[0]?.id || 1,
+        available_quantity: 500,
+        initial_quantity: 500,
+        expiry_date: '2027-06-30',
+        status: 'active',
+        storage_condition: 'Controlled Room Temp (15-25°C)',
+      })
+      loadBatches()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to create batch')
+    } finally {
+      setAddBatchSubmitting(false)
+    }
+  }
+
+  // Handle Edit Batch
+  const handleOpenEditModal = (batch: BatchSummary) => {
+    setEditingBatch(batch)
+    setEditBatchData({
+      available_quantity: batch.available_quantity,
+      status: batch.status,
+      warehouse_id: warehouses.find((w) => w.code === batch.warehouse_code)?.id || 1,
+      expiry_date: batch.expiry_date.split('T')[0],
+      storage_condition: batch.storage_condition,
+    })
+  }
+
+  const handleUpdateBatch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingBatch) return
+    setEditBatchSubmitting(true)
+    setActionFeedback(null)
+    try {
+      const updated = await updateBatch(editingBatch.batch_number, editBatchData)
+      setEditingBatch(null)
+      setActionFeedback(`✓ Batch ${updated.batch_number} updated: status [${updated.status.toUpperCase()}], quantity ${updated.available_quantity}`)
+      loadBatches()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update batch')
+    } finally {
+      setEditBatchSubmitting(false)
+    }
+  }
+
+  // Handle Add Product
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAddProductSubmitting(true)
+    setActionFeedback(null)
+    try {
+      const created = await createProduct(newProductData)
+      setShowAddProductModal(false)
+      setActionFeedback(`✓ Product ${created.name} (${created.sku}) added to master catalog!`)
+      setNewProductData({
+        sku: '',
+        name: '',
+        molecule: '',
+        brand: '',
+        category: 'Antibiotic',
+        storage_range: '15°C - 25°C',
+        is_critical: false,
+        unit_price: 25.0,
+        min_safety_stock: 100,
+      })
+      const p = await fetchProducts()
+      setProducts(p)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to create product')
+    } finally {
+      setAddProductSubmitting(false)
+    }
+  }
+
   return (
     <div>
+      {/* Top action strip */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.2rem' }}>
+            Batch Inventory Ledger & Lot Governance
+          </h2>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Physical depot bin allocations, lot status containment, and outward movement ledgers.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            className="btn-secondary"
+            onClick={() => setShowAddProductModal(true)}
+            style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}
+          >
+            + Add Product SKU
+          </button>
+          <button
+            className="btn-primary"
+            onClick={() => setShowAddBatchModal(true)}
+            style={{ fontSize: '0.82rem', padding: '0.4rem 0.95rem' }}
+          >
+            + Add New Batch Lot
+          </button>
+        </div>
+      </div>
+
+      {actionFeedback && (
+        <div
+          style={{
+            padding: '0.75rem 1rem',
+            backgroundColor: 'var(--status-success-bg)',
+            color: 'var(--status-success-text)',
+            borderRadius: 6,
+            border: '1px solid var(--status-success-border)',
+            fontSize: '0.82rem',
+            fontWeight: 600,
+            marginBottom: '1rem',
+          }}
+        >
+          {actionFeedback}
+        </div>
+      )}
+
       <div className="table-container">
         <div className="table-toolbar">
           <input
@@ -175,13 +382,23 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
                     </span>
                   </td>
                   <td>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => handleOpenDetail(b.batch_number)}
-                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
-                    >
-                      Inspect Ledger &rarr;
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleOpenEditModal(b)}
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
+                        title="Edit batch quantity, status or specs"
+                      >
+                        ✎ Edit
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleOpenDetail(b.batch_number)}
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
+                      >
+                        Ledger &rarr;
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -192,7 +409,7 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
 
       {/* Batch Detail Modal / Drawer */}
       {selectedBatchNumber && (
-        <div className="modal-overlay" onClick={handleCloseModal}>
+        <div className="modal-overlay" onClick={handleCloseDetailModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
               <div>
@@ -204,7 +421,7 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
                 </p>
               </div>
               <button
-                onClick={handleCloseModal}
+                onClick={handleCloseDetailModal}
                 style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: 'var(--text-muted)' }}
               >
                 &times;
@@ -217,7 +434,6 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
               </div>
             ) : detail ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                {/* Summary Strip */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', background: 'var(--bg-card-subtle)', padding: '0.85rem', borderRadius: 6 }}>
                   <div>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block' }}>WAREHOUSE STOCK</span>
@@ -273,7 +489,7 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
                     </span>
                   </div>
 
-                  <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 6 }}>
+                  <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 6 }}>
                     <table className="data-table" style={{ fontSize: '0.78rem' }}>
                       <thead>
                         <tr>
@@ -317,19 +533,433 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
                     <button
                       className="btn-primary"
                       onClick={() => {
-                        handleCloseModal()
+                        handleCloseDetailModal()
                         onInvestigateBatch(selectedBatchNumber)
                       }}
                     >
                       Investigate with Agent &rarr;
                     </button>
                   )}
-                  <button className="btn-secondary" onClick={handleCloseModal}>
+                  <button className="btn-secondary" onClick={handleCloseDetailModal}>
                     Close
                   </button>
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Add Batch Modal */}
+      {showAddBatchModal && (
+        <div className="modal-overlay" onClick={() => setShowAddBatchModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+              Add New Batch Lot to Inventory
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Register incoming manufactured lot, assign warehouse bin location and initial status.
+            </p>
+
+            <form onSubmit={handleCreateBatch} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Batch Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. B5521"
+                    className="search-input"
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                    value={newBatchData.batch_number}
+                    onChange={(e) => setNewBatchData({ ...newBatchData, batch_number: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Product SKU *
+                  </label>
+                  <select
+                    className="select-filter"
+                    style={{ width: '100%' }}
+                    value={newBatchData.product_id}
+                    onChange={(e) => setNewBatchData({ ...newBatchData, product_id: Number(e.target.value) })}
+                  >
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.sku})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Warehouse Facility *
+                  </label>
+                  <select
+                    className="select-filter"
+                    style={{ width: '100%' }}
+                    value={newBatchData.warehouse_id}
+                    onChange={(e) => setNewBatchData({ ...newBatchData, warehouse_id: Number(e.target.value) })}
+                  >
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Initial Stock Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={newBatchData.available_quantity}
+                    onChange={(e) => setNewBatchData({
+                      ...newBatchData,
+                      available_quantity: Number(e.target.value),
+                      initial_quantity: Number(e.target.value),
+                    })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Expiry Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={newBatchData.expiry_date}
+                    onChange={(e) => setNewBatchData({ ...newBatchData, expiry_date: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Initial Status *
+                  </label>
+                  <select
+                    className="select-filter"
+                    style={{ width: '100%' }}
+                    value={newBatchData.status}
+                    onChange={(e) => setNewBatchData({ ...newBatchData, status: e.target.value })}
+                  >
+                    <option value="active">Active (Available for Dispatch)</option>
+                    <option value="dispatch_hold">Dispatch Hold (Pending QA)</option>
+                    <option value="quarantine">Quarantine (Isolation)</option>
+                    <option value="recalled">Recalled (Regulatory Lock)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Storage Condition Specifications
+                </label>
+                <input
+                  type="text"
+                  className="search-input"
+                  style={{ width: '100%' }}
+                  value={newBatchData.storage_condition}
+                  onChange={(e) => setNewBatchData({ ...newBatchData, storage_condition: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowAddBatchModal(false)}
+                  disabled={addBatchSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={addBatchSubmitting}>
+                  {addBatchSubmitting ? 'Registering...' : 'Confirm & Register Batch'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Batch Modal */}
+      {editingBatch && (
+        <div className="modal-overlay" onClick={() => setEditingBatch(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+              Edit Batch: <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-terracotta)' }}>{editingBatch.batch_number}</span>
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Modify current lot status, adjust physical available quantity, or update facility location.
+            </p>
+
+            <form onSubmit={handleUpdateBatch} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Batch Status *
+                </label>
+                <select
+                  className="select-filter"
+                  style={{ width: '100%' }}
+                  value={editBatchData.status}
+                  onChange={(e) => setEditBatchData({ ...editBatchData, status: e.target.value })}
+                >
+                  <option value="active">Active (Available for Dispatch)</option>
+                  <option value="dispatch_hold">Dispatch Hold (Quality Hold)</option>
+                  <option value="quarantine">Quarantine (Isolation Lock)</option>
+                  <option value="recalled">Recalled (Regulatory Freeze)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Available Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    required
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={editBatchData.available_quantity ?? 0}
+                    onChange={(e) => setEditBatchData({ ...editBatchData, available_quantity: Number(e.target.value) })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Warehouse Facility
+                  </label>
+                  <select
+                    className="select-filter"
+                    style={{ width: '100%' }}
+                    value={editBatchData.warehouse_id}
+                    onChange={(e) => setEditBatchData({ ...editBatchData, warehouse_id: Number(e.target.value) })}
+                  >
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Expiry Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={editBatchData.expiry_date || ''}
+                    onChange={(e) => setEditBatchData({ ...editBatchData, expiry_date: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Storage Condition
+                  </label>
+                  <input
+                    type="text"
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={editBatchData.storage_condition || ''}
+                    onChange={(e) => setEditBatchData({ ...editBatchData, storage_condition: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setEditingBatch(null)}
+                  disabled={editBatchSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={editBatchSubmitting}>
+                  {editBatchSubmitting ? 'Saving...' : 'Save Batch Updates'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Product Modal */}
+      {showAddProductModal && (
+        <div className="modal-overlay" onClick={() => setShowAddProductModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+              Add Product to Master Catalog
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Create a new pharmaceutical SKU with molecule, storage conditions and safety stock.
+            </p>
+
+            <form onSubmit={handleCreateProduct} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    SKU Code *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. MED-AZI-500"
+                    className="search-input"
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                    value={newProductData.sku}
+                    onChange={(e) => setNewProductData({ ...newProductData, sku: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Brand Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Azithral 500"
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={newProductData.brand}
+                    onChange={(e) => setNewProductData({ ...newProductData, brand: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                  Full Product Name & Formulation *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Azithromycin Tablets IP 500mg"
+                  className="search-input"
+                  style={{ width: '100%' }}
+                  value={newProductData.name}
+                  onChange={(e) => setNewProductData({ ...newProductData, name: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Active Molecule / API *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Azithromycin Dihydrate"
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={newProductData.molecule}
+                    onChange={(e) => setNewProductData({ ...newProductData, molecule: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Therapeutic Category
+                  </label>
+                  <select
+                    className="select-filter"
+                    style={{ width: '100%' }}
+                    value={newProductData.category}
+                    onChange={(e) => setNewProductData({ ...newProductData, category: e.target.value })}
+                  >
+                    <option value="Antibiotic">Antibiotic</option>
+                    <option value="Critical Care Injectable">Critical Care Injectable</option>
+                    <option value="Biologic / Vaccine">Biologic / Vaccine</option>
+                    <option value="Cardiovascular">Cardiovascular</option>
+                    <option value="Analgesic">Analgesic</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Storage Range
+                  </label>
+                  <input
+                    type="text"
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={newProductData.storage_range}
+                    onChange={(e) => setNewProductData({ ...newProductData, storage_range: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                    Min Safety Stock (Units)
+                  </label>
+                  <input
+                    type="number"
+                    min={10}
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    value={newProductData.min_safety_stock}
+                    onChange={(e) => setNewProductData({ ...newProductData, min_safety_stock: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  id="chkCritical"
+                  checked={newProductData.is_critical}
+                  onChange={(e) => setNewProductData({ ...newProductData, is_critical: e.target.checked })}
+                />
+                <label htmlFor="chkCritical" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                  Mark as Critical Care Formulation (High Shortage Priority)
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowAddProductModal(false)}
+                  disabled={addProductSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={addProductSubmitting}>
+                  {addProductSubmitting ? 'Adding...' : 'Add to Catalog'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 import asyncio
 import json
-from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.database import get_db, SessionLocal
@@ -19,40 +19,66 @@ router = APIRouter(prefix="/api/agent", tags=["Agent"])
 
 @router.get("/templates")
 def get_task_templates():
+    """Returns realistic operational queries across all supply-chain functional domains."""
     return [
         {
-            "id": "tpl-recall",
-            "title": "Investigate Recall: Batch B2231",
-            "category": "Recall Containment",
-            "prompt": "Investigate recall Batch B2231.",
-            "description": "Trace 640 outward units, isolate 180 warehouse units, verify 25 recipients, check Batch B2240 replacement feasibility, and stage containment proposals.",
+            "id": "tpl-attention",
+            "title": "Daily Operations Triage",
+            "category": "Operational Triage",
+            "prompt": "What should I deal with first this morning?",
+            "description": "Comprehensive scan across active recalls, cold-chain temperature spikes, near-expiry inventory, and ICU shortages.",
         },
         {
-            "id": "tpl-expiry",
-            "title": "Expiry & Return Window Audit",
-            "category": "Loss Prevention",
-            "prompt": "Find batches likely to expire before they can be sold.",
-            "description": "Scan 90-day expiry horizon, calculate sell-through velocity, and file supplier RMA before credit window closes.",
+            "id": "tpl-recall",
+            "title": "Batch Recall & Traceability",
+            "category": "Recall Containment",
+            "prompt": "Investigate recall Batch B2231 and prepare response options.",
+            "description": "Trace customer recipients (chemists vs hospitals), isolate warehouse stock, calculate replacement deficit, and stage proposals.",
         },
         {
             "id": "tpl-cold",
             "title": "Cold-Chain Thermal Excursion",
             "category": "Good Distribution Practice",
-            "prompt": "Investigate a cold-chain temperature excursion.",
-            "description": "Examine Unit 2 thermal log spikes (12.8°C for 4.5h), isolate 500 biological units, and mandate QA protein stability audit.",
+            "prompt": "Which batches are at risk because their cold room became too warm?",
+            "description": "Examine thermal logger spikes, identify biological batches in the affected facility, and stage quarantine review.",
+        },
+        {
+            "id": "tpl-expiry",
+            "title": "Expiry & Supplier Return Audit",
+            "category": "Loss Prevention & FEFO",
+            "prompt": "Are any medicines likely to expire before we can sell them?",
+            "description": "Scan 90-day expiry horizon, calculate sell-through velocity, detect FEFO violations, and file vendor return RMA.",
         },
         {
             "id": "tpl-shortage",
-            "title": "Critical ICU Medicine Shortage",
+            "title": "Critical Medicine Shortage Analysis",
             "category": "Supply Continuity",
-            "prompt": "Identify critical medicine shortage risks.",
-            "description": "Identify Meropenem ICU reserve depletion (45 units left, 3.75-day stockout), and formulate emergency PO respecting MOQ.",
+            "prompt": "Why is Meropenem showing as a shortage risk?",
+            "description": "Calculate Days of Cover (DoC), projected stockout date, and formulate emergency replenishment purchase order.",
+        },
+        {
+            "id": "tpl-comparison",
+            "title": "Response Option Comparison",
+            "category": "Decision Support",
+            "prompt": "Compare returning this stock with transferring it to another warehouse.",
+            "description": "Evaluate multi-attribute operational alternatives with quantitative trade-offs.",
         },
     ]
 
 
+@router.get("/runs", response_model=List[AgentRunDetailSchema])
+def list_agent_runs(
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """Lists historical agent investigation runs for compliance and audit logging."""
+    runs = db.query(AgentRun).order_by(AgentRun.created_at.desc()).limit(limit).all()
+    return [_build_run_detail(db, r) for r in runs]
+
+
 @router.post("/run", response_model=AgentRunDetailSchema)
 def run_agent_task(payload: AgentTaskRequest, db: Session = Depends(get_db)):
+    """Executes the multi-stage autonomous operations agent workflow."""
     orchestrator = AgentOrchestrator(db)
     run = orchestrator.run_task(
         prompt=payload.prompt,
@@ -64,6 +90,7 @@ def run_agent_task(payload: AgentTaskRequest, db: Session = Depends(get_db)):
 
 @router.get("/runs/{run_id}", response_model=AgentRunDetailSchema)
 def get_run_details(run_id: str, db: Session = Depends(get_db)):
+    """Retrieves full investigation records, execution timeline, and verification evidence for a run."""
     run = db.query(AgentRun).filter_by(id=run_id).first()
     if not run:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
@@ -107,7 +134,6 @@ async def stream_run_events(run_id: str):
                     yield f"event: agent_event\ndata: {json.dumps(payload)}\n\n"
 
                 if run.state in ["awaiting_approval", "completed", "failed"]:
-                    # Final event
                     run_detail = _build_run_detail(db, run)
                     yield f"event: run_finished\ndata: {json.dumps(run_detail.model_dump())}\n\n"
                     is_completed = True

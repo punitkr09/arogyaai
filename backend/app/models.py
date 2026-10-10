@@ -33,10 +33,28 @@ class HealthResponse(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="ISO timestamp of health response",
     )
-    mode: str = Field(default="demo", description="Active agent execution mode")
+    mode: str = Field(default="operations", description="Active agent execution mode")
     available_stages: List[str] = Field(
-        default_factory=lambda: ["planner", "executor", "verifier", "repair"],
+        default_factory=lambda: [
+            "intake",
+            "planning",
+            "execution",
+            "analysis",
+            "verification",
+            "approval",
+            "reporting",
+            "planner",
+            "executor",
+            "verifier",
+            "repair",
+        ],
         description="Supported agent pipeline stages",
+    )
+    ai_provider: Optional[Dict[str, Any]] = Field(
+        default=None, description="Detailed health of the AI inference provider"
+    )
+    database_status: Optional[str] = Field(
+        default="connected", description="Database connection health"
     )
 
 

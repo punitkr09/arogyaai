@@ -6,6 +6,15 @@ export interface HealthResponse {
   timestamp: string
   mode: string
   available_stages: string[]
+  ai_provider?: {
+    is_online: boolean
+    provider: string
+    model: string
+    latency_ms: number
+    message: string
+    base_url?: string
+  }
+  database_status?: string
 }
 
 export type StageName = 'planner' | 'executor' | 'verifier' | 'repair'

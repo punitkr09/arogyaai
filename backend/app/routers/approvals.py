@@ -12,7 +12,12 @@ from app.db_models import (
     Supplier,
     Product,
 )
-from app.schemas import ActionProposalSchema, ApprovalDecisionRequest
+from app.schemas import (
+    ActionProposalSchema,
+    ApprovalDecisionRequest,
+    CreateCustomProposalRequest,
+    UpdateProposalRequest,
+)
 from app.tools.registry import ToolRegistry
 
 router = APIRouter(prefix="/api/approvals", tags=["Approvals"])
@@ -123,3 +128,91 @@ def act_on_proposal(
         approved_at=prop.approved_at.isoformat() if prop.approved_at else None,
         rejection_reason=prop.rejection_reason,
     )
+
+
+@router.post("/custom", response_model=ActionProposalSchema)
+def create_custom_proposal(
+    payload: CreateCustomProposalRequest,
+    db: Session = Depends(get_db),
+):
+    import uuid
+    run_id = f"custom-run-{uuid.uuid4().hex[:8]}"
+    now = datetime.now(timezone.utc)
+    proposal = ActionProposal(
+        run_id=run_id,
+        action_type=payload.action_type,
+        title=payload.title,
+        description=payload.description,
+        rationale=payload.rationale,
+        target_entity=payload.target_entity,
+        expected_impact=payload.expected_impact,
+        supporting_evidence=json.dumps({"source": "manual_operator_proposal", "created_at": now.isoformat()}),
+        status="pending_review",
+        created_at=now,
+    )
+    db.add(proposal)
+    db.commit()
+    db.refresh(proposal)
+
+    return ActionProposalSchema(
+        id=proposal.id,
+        run_id=proposal.run_id,
+        incident_id=proposal.incident_id,
+        action_type=proposal.action_type,
+        title=proposal.title,
+        description=proposal.description,
+        rationale=proposal.rationale,
+        supporting_evidence=json.loads(proposal.supporting_evidence) if proposal.supporting_evidence else None,
+        target_entity=proposal.target_entity,
+        expected_impact=proposal.expected_impact,
+        status=proposal.status,
+        created_at=proposal.created_at.isoformat(),
+        approved_by=None,
+        approved_at=None,
+        rejection_reason=None,
+    )
+
+
+@router.put("/{proposal_id}", response_model=ActionProposalSchema)
+def update_proposal(
+    proposal_id: int,
+    payload: UpdateProposalRequest,
+    db: Session = Depends(get_db),
+):
+    prop = db.query(ActionProposal).filter_by(id=proposal_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail=f"Proposal {proposal_id} not found.")
+
+    if prop.status != "pending_review":
+        raise HTTPException(status_code=400, detail=f"Cannot edit proposal that is already {prop.status}.")
+
+    if payload.title is not None:
+        prop.title = payload.title.strip()
+    if payload.description is not None:
+        prop.description = payload.description.strip()
+    if payload.rationale is not None:
+        prop.rationale = payload.rationale.strip()
+    if payload.expected_impact is not None:
+        prop.expected_impact = payload.expected_impact.strip()
+
+    db.commit()
+    db.refresh(prop)
+
+    return ActionProposalSchema(
+        id=prop.id,
+        run_id=prop.run_id,
+        incident_id=prop.incident_id,
+        action_type=prop.action_type,
+        title=prop.title,
+        description=prop.description,
+        rationale=prop.rationale,
+        supporting_evidence=json.loads(prop.supporting_evidence) if prop.supporting_evidence else None,
+        target_entity=prop.target_entity,
+        expected_impact=prop.expected_impact,
+        status=prop.status,
+        created_at=prop.created_at.isoformat(),
+        approved_by=prop.approved_by,
+        approved_at=prop.approved_at.isoformat() if prop.approved_at else None,
+        rejection_reason=prop.rejection_reason,
+    )
+

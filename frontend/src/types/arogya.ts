@@ -63,6 +63,7 @@ export interface StockMovement {
 export interface CustomerDispatch {
   id: number
   dispatch_number: string
+  customer_code?: string
   customer_name: string
   customer_type: string
   quantity: number
@@ -77,6 +78,34 @@ export interface BatchDetail {
   movements: StockMovement[]
   dispatches: CustomerDispatch[]
   total_dispatched: number
+}
+
+export interface TraceabilityRecipient {
+  dispatch_number: string
+  customer_code: string
+  customer_name: string
+  customer_type: string
+  priority_tier: number
+  contact_email?: string
+  phone?: string
+  quantity: number
+  dispatch_date: string
+  status: string
+  tracking_ref?: string
+}
+
+export interface TraceabilityData {
+  batch_number: string
+  product_name: string
+  product_sku: string
+  remaining_warehouse_stock: number
+  total_dispatched_quantity: number
+  total_recipients_count: number
+  breakdown: {
+    hospitals: { count: number; quantity: number }
+    chemists: { count: number; quantity: number }
+  }
+  recipients: TraceabilityRecipient[]
 }
 
 export interface ActionProposal {
@@ -146,7 +175,7 @@ export interface FinalReport {
 export interface AgentRunDetail {
   run_id: string
   prompt: string
-  state: 'queued' | 'planning' | 'executing' | 'verifying' | 'awaiting_approval' | 'completed' | 'failed'
+  state: 'queued' | 'intake' | 'planning' | 'executing' | 'analyzing' | 'verifying' | 'awaiting_approval' | 'completed' | 'failed'
   current_step: number
   created_at: string
   completed_at?: string
@@ -165,3 +194,239 @@ export interface TaskTemplate {
   prompt: string
   description: string
 }
+
+export interface Customer {
+  id: number
+  code: string
+  name: string
+  customer_type: string
+  priority_tier: number
+  contact_email?: string
+  phone?: string
+  address?: string
+}
+
+export interface Warehouse {
+  id: number
+  code: string
+  name: string
+  location: string
+  cold_storage_available: boolean
+}
+
+export interface TemperatureLog {
+  id: number
+  warehouse_id: number
+  warehouse_name: string
+  cold_room_unit: string
+  recorded_at: string
+  recorded_temperature_celsius: number
+  permitted_range: string
+  duration_minutes: number
+  thermal_severity: string
+  notes?: string
+}
+
+export interface PurchaseOrder {
+  id: number
+  po_number: string
+  product_name: string
+  product_sku: string
+  supplier_name: string
+  quantity: number
+  unit_price: number
+  total_amount: number
+  status: string
+  order_date: string
+  expected_delivery_date?: string
+  notes?: string
+}
+
+export interface CreateBatchInput {
+  batch_number: string
+  product_id: number
+  warehouse_id: number
+  available_quantity: number
+  initial_quantity?: number
+  manufacturing_date?: string
+  expiry_date: string
+  status?: string
+  storage_condition?: string
+}
+
+export interface UpdateBatchInput {
+  available_quantity?: number
+  status?: string
+  warehouse_id?: number
+  expiry_date?: string
+  storage_condition?: string
+}
+
+export interface CreateProductInput {
+  sku: string
+  name: string
+  molecule: string
+  brand: string
+  category: string
+  storage_range?: string
+  is_critical?: boolean
+  unit_price?: number
+  unit_of_measure?: string
+  min_safety_stock?: number
+}
+
+export interface UpdateProductInput {
+  name?: string
+  molecule?: string
+  brand?: string
+  category?: string
+  storage_range?: string
+  is_critical?: boolean
+  unit_price?: number
+  unit_of_measure?: string
+  min_safety_stock?: number
+}
+
+export interface CreateCustomerInput {
+  code: string
+  name: string
+  customer_type: string
+  priority_tier?: number
+  contact_email?: string
+  phone?: string
+  address?: string
+}
+
+export interface UpdateCustomerInput {
+  name?: string
+  customer_type?: string
+  priority_tier?: number
+  contact_email?: string
+  phone?: string
+  address?: string
+}
+
+export interface CreateTemperatureLogInput {
+  warehouse_id: number
+  cold_room_unit: string
+  recorded_temperature_celsius: number
+  permitted_range?: string
+  duration_minutes?: number
+  thermal_severity?: string
+  notes?: string
+}
+
+export interface CreatePurchaseOrderInput {
+  product_id: number
+  supplier_id?: number
+  quantity: number
+  unit_price?: number
+  notes?: string
+}
+
+export interface CreateCustomProposalInput {
+  action_type: string
+  title: string
+  description: string
+  rationale: string
+  target_entity: string
+  expected_impact: string
+}
+
+export interface UpdateProposalInput {
+  title?: string
+  description?: string
+  rationale?: string
+  expected_impact?: string
+}
+
+// ---------------------------------------------------------------------------
+// What-If Supply Chain Simulator Interfaces
+// ---------------------------------------------------------------------------
+export interface SimulatorPresetScenario {
+  id: string
+  name: string
+  scenario_type: string
+  batch_number?: string
+  replacement_batch_number?: string
+  warehouse_id?: number
+  product_id?: number
+  demand_surge_percent?: number
+  supplier_delay_days?: number
+  hospital_priority_weight?: number
+  description: string
+  severity: string
+  benchmark: boolean
+}
+
+export interface SimulationScenarioRequest {
+  scenario_type: string
+  batch_number?: string
+  product_id?: number
+  warehouse_id?: number
+  replacement_batch_number?: string
+  demand_surge_percent?: number
+  supplier_delay_days?: number
+  hospital_priority_weight?: number
+  custom_prompt?: string
+}
+
+export interface SimulationActionProposal {
+  action_type: string
+  title: string
+  description: string
+  target_entity: string
+  rationale: string
+  expected_impact: string
+  evidence?: Record<string, any>
+}
+
+export interface SimulationStrategy {
+  strategy_id: string
+  name: string
+  description: string
+  hospital_fulfillment_percent: number
+  retail_fulfillment_percent: number
+  replacement_deficit: number
+  emergency_order_units?: number
+  emergency_po_units?: number
+  estimated_cost: number
+  lead_time_days: number
+  projected_runway_days: number
+  pros: string[]
+  cons: string[]
+  is_recommended: boolean
+  action_proposals: SimulationActionProposal[]
+}
+
+export interface SimulationResult {
+  simulation_id: string
+  scenario_name: string
+  scenario_type: string
+  parameters_used: Record<string, any>
+  baseline: Record<string, any>
+  strategies: SimulationStrategy[]
+  recommended_strategy_id: string
+  executive_summary: string
+  assumptions: string[]
+  missing_data: string[]
+  evidence: Record<string, any>
+  clinical_safety_notice: string
+}
+
+export interface StageSimulationProposalRequest {
+  simulation_id: string
+  strategy_id: string
+  strategy_name: string
+  scenario_name: string
+  proposals: SimulationActionProposal[]
+}
+
+export interface StageSimulationProposalResponse {
+  success: boolean
+  run_id: string
+  created_proposal_ids: number[]
+  message: string
+  approval_center_url: string
+}
+

@@ -17,22 +17,22 @@ from app.models import (
 
 SAMPLE_TEMPLATES: List[SampleTemplate] = [
     SampleTemplate(
-        id="tpl-db-index",
-        title="PostgreSQL Index & Connection Pool Optimizer",
-        category="Database Engineering",
-        problem_statement="Diagnose high query latencies and CPU spikes in a multi-tenant PostgreSQL database processing 10k read-heavy queries/sec during peak traffic.",
+        id="tpl-recall-containment",
+        title="Class II Recall Containment & Hospital Priority Allocation",
+        category="Recall Containment",
+        problem_statement="Investigate national Class II batch recall for Augmax-625 (Batch B2231). Trace 640 outward units across 23 chemists and 2 hospitals, isolate 180 warehouse units, verify Batch B2240 replacement feasibility, and stage containment proposals.",
     ),
     SampleTemplate(
-        id="tpl-auth-migration",
-        title="Zero-Downtime OAuth2 / JWT Key Rotation",
-        category="Security & Architecture",
-        problem_statement="Design an automated agent workflow to migrate legacy session tokens to asymmetric RS256 JWTs with dual-validation and graceful zero-downtime revocation.",
+        id="tpl-cold-chain",
+        title="Cold-Chain Thermal Excursion Investigation & Biological Audit",
+        category="Good Distribution Practice",
+        problem_statement="Investigate North Cold Logistics Facility Unit 2 temperature spike to 12.8°C for 4.5 hours. Map affected biological batches (Insulin Glargine Batch B4019) and mandate protein stability review.",
     ),
     SampleTemplate(
-        id="tpl-cache-coherence",
-        title="Distributed Redis Cache Stampede Mitigator",
-        category="Distributed Systems",
-        problem_statement="Implement an agent-guided distributed lock with probabilistic early re-computation (XFetch) to prevent hot-key cache stampedes across a Kubernetes cluster.",
+        id="tpl-icu-shortage",
+        title="Critical ICU Antibiotic Reserve Depletion & Replenishment",
+        category="Supply Continuity",
+        problem_statement="Assess Meropenem 1g reserve depletion (Batch B3102 down to 45 units against 200 safety stock). Calculate Days of Cover (3.75 days) and formulate emergency supplier purchase order respecting MOQ.",
     ),
 ]
 

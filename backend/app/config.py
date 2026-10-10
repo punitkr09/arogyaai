@@ -5,6 +5,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_raw_db_url = os.getenv("DATABASE_URL", "")
+if not _raw_db_url or _raw_db_url == "sqlite:///./arogya.db":
+    _resolved_db_url = f"sqlite:///{os.path.join(BASE_DIR, 'arogya.db')}"
+elif _raw_db_url.startswith("sqlite:///./"):
+    _resolved_db_url = f"sqlite:///{os.path.join(BASE_DIR, _raw_db_url[len('sqlite:///./'):])}"
+else:
+    _resolved_db_url = _raw_db_url
+
+
 class Settings:
     APP_NAME: str = os.getenv("APP_NAME", "Arogya AI — Pharmaceutical Inventory Intelligence")
     APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
@@ -12,10 +22,17 @@ class Settings:
     PORT: int = int(os.getenv("PORT", "8000"))
     HOST: str = os.getenv("HOST", "0.0.0.0")
 
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./arogya.db")
+    DATABASE_URL: str = _resolved_db_url
 
-    # LLM configuration (optional - mock provider runs by default)
-    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "mock")  # "mock", "openai", "gemini", "ollama"
+
+    # AI provider configuration (local inference with Ollama by default, or OpenAI-compatible)
+    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "ollama")  # "ollama", "openai", "semantic"
+    AI_BASE_URL: str = os.getenv("AI_BASE_URL", "http://localhost:11434/v1")
+    AI_MODEL: str = os.getenv("AI_MODEL", "qwen2.5-coder:7b")
+    AI_API_KEY: str = os.getenv("AI_API_KEY", "")
+    AI_TIMEOUT_SECONDS: int = int(os.getenv("AI_TIMEOUT_SECONDS", "15"))
+
+    # Legacy LLM config aliases for backwards compatibility
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
@@ -25,7 +42,7 @@ class Settings:
         "CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
     )
-    DEFAULT_EXECUTION_MODE: str = os.getenv("DEFAULT_EXECUTION_MODE", "demo")
+    DEFAULT_EXECUTION_MODE: str = os.getenv("DEFAULT_EXECUTION_MODE", "operations")
 
     @property
     def cors_origins(self) -> List[str]:

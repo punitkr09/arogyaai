@@ -8,7 +8,8 @@ from app.routers.dashboard import router as dashboard_router
 from app.routers.inventory import router as inventory_router
 from app.routers.agent import router as agent_router
 from app.routers.approvals import router as approvals_router
-from app.routers.demo import router as demo_router
+from app.routers.demo import router as demo_router, admin_router
+from app.routers.simulator import router as simulator_router
 
 
 @asynccontextmanager
@@ -45,7 +46,9 @@ app.include_router(inventory_router)
 app.include_router(agent_router)
 app.include_router(approvals_router)
 app.include_router(demo_router)
+app.include_router(admin_router)
 app.include_router(workflow_router)
+app.include_router(simulator_router)
 
 
 @app.get("/")

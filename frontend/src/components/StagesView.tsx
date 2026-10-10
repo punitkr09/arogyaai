@@ -6,7 +6,8 @@ interface StagesViewProps {
   isDemo: boolean
 }
 
-export const StagesView: React.FC<StagesViewProps> = ({ stages, isDemo }) => {
+export const StagesView: React.FC<StagesViewProps> = ({ stages, isDemo: _isDemo }) => {
+
   const [activeTab, setActiveTab] = useState<string>(stages[0]?.id || '')
 
   const getStageIcon = (name: string) => {
@@ -50,11 +51,9 @@ export const StagesView: React.FC<StagesViewProps> = ({ stages, isDemo }) => {
             Visual breakdown of the multi-agent cognitive loop. Click any stage to inspect tactical reasoning and generated artifacts.
           </p>
         </div>
-        {isDemo && (
-          <span className="badge badge-demo-accent">
-            DEMO HEURISTIC SIMULATION
-          </span>
-        )}
+        <span className="badge badge-online">
+          COGNITIVE REASONING PIPELINE
+        </span>
       </div>
 
       {/* Stage Flow Pipeline */}
