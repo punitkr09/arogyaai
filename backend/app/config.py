@@ -6,11 +6,14 @@ load_dotenv()
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_raw_db_url = os.getenv("DATABASE_URL", "")
+_raw_db_url = os.getenv("DATABASE_URL", "").strip()
 if not _raw_db_url or _raw_db_url == "sqlite:///./arogya.db":
     _resolved_db_url = f"sqlite:///{os.path.join(BASE_DIR, 'arogya.db')}"
 elif _raw_db_url.startswith("sqlite:///./"):
     _resolved_db_url = f"sqlite:///{os.path.join(BASE_DIR, _raw_db_url[len('sqlite:///./'):])}"
+elif _raw_db_url.startswith("postgres://"):
+    # SQLAlchemy requires postgresql:// instead of legacy postgres:// dialect prefix
+    _resolved_db_url = _raw_db_url.replace("postgres://", "postgresql://", 1)
 else:
     _resolved_db_url = _raw_db_url
 
@@ -42,6 +45,8 @@ class Settings:
         "CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
     )
+    # Default allows any *.vercel.app deployment preview or production domain
+    CORS_ORIGIN_REGEX: str = os.getenv("CORS_ORIGIN_REGEX", r"^https:\/\/.*\.vercel\.app$")
     DEFAULT_EXECUTION_MODE: str = os.getenv("DEFAULT_EXECUTION_MODE", "operations")
     # Configurable business reference date (dataset snapshot is 2026-11-16)
     BUSINESS_REFERENCE_DATE: str = os.getenv("BUSINESS_REFERENCE_DATE", "2026-11-16")

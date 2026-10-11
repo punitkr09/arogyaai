@@ -67,6 +67,6 @@ async def get_ai_status():
         "latency_ms": health_info.get("latency_ms", 0.0),
         "available_models": health_info.get("available_models", []),
         "message": health_info.get("message", ""),
-        "configured_base_url": "http://localhost:11434",
+        "configured_base_url": settings.OLLAMA_BASE_URL or settings.AI_BASE_URL,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

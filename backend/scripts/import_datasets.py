@@ -84,8 +84,11 @@ def parse_iso_or_date(d_str: str) -> Optional[datetime]:
 
 
 def run_schema_migrations():
-    """Applies safe SQLite column additions for existing tables without dropping data."""
+    """Applies safe column additions for existing tables without dropping data."""
     Base.metadata.create_all(bind=engine)
+    if engine.dialect.name != "sqlite":
+        return
+
     with engine.connect() as conn:
         def add_column_if_missing(table: str, col: str, col_type: str):
             try:

@@ -14,7 +14,8 @@ import type {
   ActionProposal,
 } from '../types/arogya'
 
-const API_BASE = '/api'
+const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || ''
+const API_BASE = rawApiUrl ? `${rawApiUrl.replace(/\/+$/, '')}/api` : '/api'
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
