@@ -8,11 +8,181 @@ Furthermore, Arogya AI features the **What-If Supply Chain Simulator** — an is
 
 ---
 
+## ⚡ Quick Start: Up & Running in 60 Seconds
+
+You can start and use Arogya AI right now on your machine with three simple steps:
+
+### 1️⃣ Step 1: Start Local AI (Ollama)
+```bash
+# Start Ollama service (if not already running)
+ollama serve
+
+# Pull the recommended model (one-time download)
+ollama pull qwen2.5-coder:7b
+```
+> 💡 *Note: If you don't have Ollama installed yet, Arogya AI will automatically activate its built-in **Deterministic Dataset Fallback Mode** so all features, dashboards, and tools continue to work 100%!*
+
+### 2️⃣ Step 2: Start the Backend Server (Terminal 1)
+```bash
+cd backend
+source ../.venv/bin/activate
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+> 🟢 **Backend Live at:** [http://127.0.0.1:8000](http://127.0.0.1:8000) (Health check: `http://127.0.0.1:8000/api/health`)
+
+### 3️⃣ Step 3: Start the Frontend Dashboard (Terminal 2)
+```bash
+cd frontend
+npm run dev
+```
+> 🌐 **Frontend Live at:** [http://localhost:5173](http://localhost:5173) — **Open this in your browser!**
+
+---
+
+## 🦙 Ollama Installation & Setup Guide (Complete)
+
+Arogya AI is powered by local, private AI running directly on your computer using [Ollama](https://ollama.ai). Your pharmaceutical data never leaves your machine!
+
+### How to Install Ollama on Your Operating System:
+- **macOS**:
+  - Download the Mac app from [ollama.com/download](https://ollama.com/download/mac), or run:
+    ```bash
+    brew install ollama
+    ```
+- **Linux** (Ubuntu, Debian, Fedora, Arch):
+  - Run the official one-line installation command:
+    ```bash
+    curl -fsSL https://ollama.com/install.sh | sh
+    ```
+- **Windows**:
+  - Download and run `OllamaSetup.exe` from [ollama.com/download/windows](https://ollama.com/download/windows).
+
+### Verify Ollama Installation:
+After installation, test that Ollama is responding:
+```bash
+# 1. Start the service
+ollama serve
+
+# 2. In another terminal, pull the recommended 7B coder model
+ollama pull qwen2.5-coder:7b
+
+# 3. Verify installed models
+ollama list
+```
+When `qwen2.5-coder:7b` appears in the list, Arogya AI will automatically connect and show `AI: Local — Connected`!
+
+---
+
+## 🎮 How to Use Arogya AI: Complete Step-by-Step User Guide
+
+Welcome to **Arogya AI**! This visual guide explains exactly how to use every screen, run intelligent supply chain simulations, and interact with the AI assistant.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 AROGYA AI NAVIGATION QUICK REFERENCE                                   │
+├──────────────┬───────────────────────────────┬─────────────────────────────────────────────────────────┤
+│ 📊 Overview  │ Executive Summary             │ Total batches, cold-chain breaches, urgent recall flags │
+│ 🤖 Agent     │ Natural Language AI Desk      │ Ask questions in plain English; get evidence-backed reasoning │
+│ 🔮 Simulator │ What-If Predictive Sandbox    │ Model supply shocks without mutating the live database  │
+│ ⚖️ Approvals │ Qualified Person Sign-Off     │ Approve staged actions (R.Ph verification gate)         │
+│ 🔍 Trace     │ Chain-of-Custody Tracker      │ Track batch deliveries to hospital ICUs & retailers     │
+│ ❄️ Cold-Chain│ IoT Temperature Telemetry     │ Monitor 2°C–8°C storage & flag thermal excursions       │
+│ ⏳ Expiry    │ Pre-Expiry & Supplier Returns │ Audit expiring lots and contractual return windows      │
+│ 📉 Shortages │ Replenishment & Reorders      │ Identify stock deficits and calculate emergency POs     │
+└──────────────┴───────────────────────────────┴─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 🌟 4 Core Workflows You Must Try
+
+#### Workflow 1: The AI Agent Desk (Ask Questions in Plain English)
+1. In the top navigation, click **🤖 Agent Workspace**.
+2. Notice the **Sample Prompt Buttons** at the top. Click any button (for example, **"Investigate recall Batch B2231"**) or type your own question in the input box.
+3. Click **Send Query** (or press `Enter`).
+4. **Watch the Live Reasoning Loop**: You will see a live 7-stage cognitive animation:
+   - **Stage 1 (Intake)**: Extracts the medicine name, batch number (`B2231`), and intent.
+   - **Stage 2 (Planning)**: Selects diagnostic tools (dispatches, alternative lots, supplier terms).
+   - **Stage 3 (Tool Execution)**: Gathers live facts from the database (e.g. 640 units dispatched to 8 hospitals).
+   - **Stage 4 (Synthesis)**: Computes clinical options (Hospital Defense vs Pro-Rata).
+   - **Stage 5 (Verification)**: Re-runs independent mathematical proofs directly against the raw database.
+   - **Stage 6 (Safety Gate)**: **Stages an Action Proposal** (status: `pending_review`). *The AI never changes inventory on its own!*
+   - **Stage 7 (Dossier)**: Displays the full executive summary and recommendation.
+
+---
+
+#### Workflow 2: What-If Supply Chain Simulator (Crisis Sandbox)
+1. In the top navigation, click **🔮 What-If Simulator**.
+2. In the **Select Disruption Scenario** dropdown, pick a real-world crisis:
+   - **Contaminated Batch Recall (B2231)**: Simulates immediate quarantine of Amoxicillin and calculates replacement deficits.
+   - **Cold Room Excursion (+14.2°C)**: Models thermal degradation on sensitive biologics (Insulin).
+   - **Supplier Active Ingredient Delay**: Models a 21-day delay from Cipla.
+   - **Emergency ICU Demand Surge**: Models a +300% surge in emergency antibiotic admissions.
+3. Click **Run Simulation**.
+4. **Compare 3 Strategies Side-by-Side**:
+   - **Strategy 1 (Aggressive Emergency Defense)**: Allocates 100% of buffer stock to Tier-1 ICU hospitals.
+   - **Strategy 2 (Balanced Pro-Rata Reallocation)**: Distributes available stock evenly across all accounts.
+   - **Strategy 3 (Conservative Buffer Hold)**: Protects minimal safety stock to avoid total depot dry-out.
+5. Review the side-by-side comparison matrix showing:
+   - Projected Deficit Units
+   - Financial Cost Impact (₹)
+   - Stockout Days
+   - Hospital Fill Rate (%)
+6. Click **Stage Strategy for QP Sign-Off** to forward the winning strategy directly to the Approval Desk with **zero risk** of mutating live stock.
+
+---
+
+#### Workflow 3: Qualified Person (QP) Approval Desk (Human Regulatory Sign-Off)
+1. In the top navigation, click **⚖️ Approval Center**.
+2. You will see all staged proposals created by the AI Agent or Simulator awaiting sign-off (marked `pending_review`).
+3. Click any proposal to view the details:
+   - Proposed Action (e.g., *Move Batch B2231 to quarantine, issue dispatch freeze, draft PO-CIPLA-001 for 600 units*).
+   - Mathematical proof and clinical rationale.
+4. Fill in the **Authorized Reviewer** details (e.g., *Dr. Ananya Sharma, R.Ph - License #DL-PH-2024-8841*).
+5. Click **Approve & Execute** (or **Reject Proposal**).
+6. Once approved, the system updates the batch state in the database and records an immutable entry in the **Audit Ledger Log**.
+
+---
+
+#### Workflow 4: Batch Traceability & Emergency Recall Mapping
+1. In the top navigation, click **🔍 Traceability**.
+2. Select batch **B2231** (Amoxicillin 500mg) from the dropdown.
+3. Instantly review:
+   - Total units manufactured vs units remaining in depot.
+   - Every single hospital ICU and retail chemist that received shipments.
+   - Customer priority tier (Tier 1 Emergency Hospitals highlighted).
+   - Instant contact info (email and phone) for recall alert dispatches.
+
+---
+
+### 💡 12 Ready-to-Use Master Queries (Copy & Paste)
+You can copy and paste any of these queries directly into the **Agent Workspace**:
+
+| # | Master Query | What It Demonstrates |
+|---|---|---|
+| 1 | `Investigate recall Batch B2231 and check if any stock was dispatched.` | Full forward recall trace across hospital ICUs. |
+| 2 | `Which critical medicines are at risk of running out?` | Days-of-cover shortage calculations. |
+| 3 | `Show all batches expiring within the next 60 days.` | Pre-expiry audit against reference date. |
+| 4 | `Which products have the highest dispatch demand?` | Historical volume and velocity ranking. |
+| 5 | `Is any recalled stock still available in Bengaluru?` | Multi-warehouse depot quarantine check. |
+| 6 | `Which cold rooms recorded temperatures outside the permitted range?` | IoT sensor excursion audit (>8°C). |
+| 7 | `Which purchase orders are overdue?` | Supplier SLA and lead-time audit. |
+| 8 | `Can you identify products that need replenishment before the next delivery?` | Emergency PO generation and reorder thresholds. |
+| 9 | `Compare insulin availability across all warehouses.` | Multi-depot cold storage stock comparison. |
+| 10 | `Why is this product being flagged as high risk?` | Explainability and multi-factor risk scoring. |
+| 11 | `What should I prioritize today, and why?` | Executive daily triage briefing. |
+| 12 | `Explain the evidence behind your recommendation.` | Invariant verification and database proof audit. |
+
+---
+
 ## Table of Contents
-1. [Executive Summary & Core Differentiators](#1-executive-summary--core-differentiators)
-2. [End-to-End System Architecture](#2-end-to-end-system-architecture)
-3. [The 7-Stage Cognitive Reasoning Loop](#3-the-7-stage-cognitive-reasoning-loop)
-4. [Backend Architecture & Component Directory](#4-backend-architecture--component-directory)
+1. [⚡ Quick Start: Up & Running in 60 Seconds](#-quick-start-up--running-in-60-seconds)
+2. [🦙 Ollama Installation & Setup Guide (Complete)](#-ollama-installation--setup-guide-complete)
+3. [🎮 Complete User Guide: How to Use Arogya AI Step-by-Step](#-how-to-use-arogya-ai-complete-step-by-step-user-guide)
+4. [Executive Summary & Core Differentiators](#1-executive-summary--core-differentiators)
+5. [End-to-End System Architecture](#2-end-to-end-system-architecture)
+6. [The 7-Stage Cognitive Reasoning Loop](#3-the-7-stage-cognitive-reasoning-loop)
+7. [Backend Architecture & Component Directory](#4-backend-architecture--component-directory)
    - [Database Schema & Relational Models (`db_models.py`)](#41-database-schema--relational-models-db_modelspy)
    - [Configuration & Environment Management (`config.py`)](#42-configuration--environment-management-configpy)
    - [AI Inference & Semantic Fallback Layer (`ai_provider.py`)](#43-ai-inference--semantic-fallback-layer-ai_providerpy)
@@ -22,19 +192,19 @@ Furthermore, Arogya AI features the **What-If Supply Chain Simulator** — an is
    - [REST API Route Handlers (`routers/`)](#47-rest-api-route-handlers-routers)
    - [Full Pharmaceutical Distribution Dataset Integration (`07_pharma_distribution.zip`)](#48-full-pharmaceutical-distribution-dataset-integration-07_pharma_distributionzip)
    - [Operational Data Ingestion via Agent Workspace & GDP Guardrails](#49-operational-data-ingestion-via-agent-workspace--gdp-guardrails)
-5. [Frontend Operations Control Centre](#5-frontend-operations-control-centre)
+8. [Frontend Operations Control Centre](#5-frontend-operations-control-centre)
    - [Design System & Navigation Shell (`App.tsx`)](#51-design-system--navigation-shell-apptsx)
    - [View Components Directory (`components/`)](#52-view-components-directory-components)
    - [Type Definitions & API Client Service](#53-type-definitions--api-client-service)
-6. [What-If Supply Chain Simulator (Standout Feature)](#6-what-if-supply-chain-simulator-standout-feature)
+9. [What-If Supply Chain Simulator (Standout Feature)](#6-what-if-supply-chain-simulator-standout-feature)
    - [Zero Live Mutation Sandbox](#61-zero-live-mutation-sandbox)
    - [Disruption Scenarios Modeled](#62-disruption-scenarios-modeled)
    - [Multi-Strategy Comparison Matrix](#63-multi-strategy-comparison-matrix)
    - [Local AI Interpretation & Qualified Person Staging](#64-local-ai-interpretation--qualified-person-staging)
-7. [Safety Barriers, Governance & Compliance Controls](#7-safety-barriers-governance--compliance-controls)
-8. [Complete REST API Reference](#8-complete-rest-api-reference)
-9. [Automated Verification Suite & Test Report](#9-automated-verification-suite--test-report)
-10. [Installation, Configuration & Operational Guide](#10-installation-configuration--operational-guide)
+10. [Safety Barriers, Governance & Compliance Controls](#7-safety-barriers-governance--compliance-controls)
+11. [Complete REST API Reference](#8-complete-rest-api-reference)
+12. [Automated Verification Suite & Test Report](#9-automated-verification-suite--test-report)
+13. [Installation, Configuration & Operational Guide](#10-installation-configuration--operational-guide)
 
 ---
 
