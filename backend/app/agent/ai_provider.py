@@ -96,18 +96,47 @@ class OpenAICompatibleProvider(BaseAIProvider):
 
     def check_health(self) -> Dict[str, Any]:
         headers = self._get_headers()
-        models_url = f"{self.base_url}/models"
         import time
+
+        native_base = self.base_url
+        if native_base.endswith("/v1"):
+            native_base = native_base[:-3]
 
         t0 = time.time()
         try:
-            with httpx.Client(timeout=httpx.Timeout(2.0, connect=1.0)) as client:
+            with httpx.Client(timeout=httpx.Timeout(2.5, connect=1.0)) as client:
+                # 1. Attempt native Ollama /api/tags endpoint
+                try:
+                    tags_url = f"{native_base}/api/tags"
+                    res_tags = client.get(tags_url, headers=headers)
+                    if res_tags.status_code == 200:
+                        data = res_tags.json()
+                        models_list = [m.get("name") or m.get("model") for m in data.get("models", []) if m]
+                        target = self.model.lower().strip()
+                        model_found = any(target in str(m).lower() or str(m).lower().startswith(target) for m in models_list)
+                        latency = round((time.time() - t0) * 1000, 1)
+                        self._cached_online = True
+                        return {
+                            "is_online": True,
+                            "provider": self.provider_name,
+                            "model": self.model,
+                            "latency_ms": latency,
+                            "model_available": model_found,
+                            "available_models": models_list[:5],
+                            "message": f"Connected to {self.provider_name} native API at {native_base} ({latency}ms)",
+                        }
+                except Exception:
+                    pass
+
+                # 2. Fallback to OpenAI-compatible /models endpoint
+                models_url = f"{self.base_url}/models"
                 res = client.get(models_url, headers=headers)
                 latency = round((time.time() - t0) * 1000, 1)
                 if res.status_code == 200:
                     data = res.json()
-                    available_models = [m.get("id") or m.get("name") for m in data.get("data", [])]
-                    model_found = self.model in available_models or any(self.model in str(m) for m in available_models)
+                    available_models = [m.get("id") or m.get("name") for m in data.get("data", []) if m]
+                    target = self.model.lower().strip()
+                    model_found = any(target in str(m).lower() for m in available_models)
                     self._cached_online = True
                     return {
                         "is_online": True,
@@ -154,7 +183,10 @@ class OpenAICompatibleProvider(BaseAIProvider):
         if self._cached_online is False and (now_ts - self._last_offline_time) < 30.0:
             raise RuntimeError(f"AI Provider '{self.provider_name}' is offline (cached).")
 
-        chat_url = f"{self.base_url}/chat/completions"
+        native_base = self.base_url
+        if native_base.endswith("/v1"):
+            native_base = native_base[:-3]
+
         headers = self._get_headers()
 
         payload_messages = []
@@ -162,6 +194,38 @@ class OpenAICompatibleProvider(BaseAIProvider):
             payload_messages.append({"role": "system", "content": system_prompt})
         payload_messages.extend(messages)
 
+        actual_timeout = timeout or self.timeout_seconds
+        client_timeout = httpx.Timeout(actual_timeout, connect=1.0)
+
+        # 1. Attempt native Ollama /api/chat endpoint
+        if self.provider_name in ["ollama", "native_ollama"]:
+            native_chat_url = f"{native_base}/api/chat"
+            native_payload = {
+                "model": self.model,
+                "messages": payload_messages,
+                "stream": False,
+                "options": {
+                    "temperature": temperature,
+                },
+            }
+            try:
+                with httpx.Client(timeout=client_timeout) as client:
+                    res = client.post(native_chat_url, headers=headers, json=native_payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        content = data.get("message", {}).get("content", "")
+                        self._cached_online = True
+                        return {
+                            "content": content,
+                            "provider": self.provider_name,
+                            "model": self.model,
+                            "raw_response": data,
+                        }
+            except Exception as e:
+                logger.info(f"Native Ollama /api/chat attempted and falling back: {e}")
+
+        # 2. Fallback to OpenAI-compatible /chat/completions endpoint
+        chat_url = f"{self.base_url}/chat/completions"
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": payload_messages,
@@ -171,8 +235,6 @@ class OpenAICompatibleProvider(BaseAIProvider):
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
-        actual_timeout = timeout or self.timeout_seconds
-        client_timeout = httpx.Timeout(actual_timeout, connect=1.0)
         try:
             with httpx.Client(timeout=client_timeout) as client:
                 res = client.post(chat_url, headers=headers, json=payload)

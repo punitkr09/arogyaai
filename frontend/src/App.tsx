@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { HealthResponse } from './types/workflow'
-import type { DashboardSummary, AgentRunDetail, TaskTemplate } from './types/arogya'
+import type { DashboardSummary, AgentRunDetail, TaskTemplate, LocalAIStatus } from './types/arogya'
 import {
   fetchHealth,
   fetchDashboardSummary,
@@ -9,6 +9,7 @@ import {
   type AIStatusResponse,
   runAgentTask,
 } from './services/api'
+import { localAiService } from './services/localAiService'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { OfflineModelRequiredModal } from './components/OfflineModelRequiredModal'
@@ -84,10 +85,6 @@ export function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }
 
-  const handleAIStatusChange = useCallback((status: AIStatusResponse | null) => {
-    setAiStatus(status)
-  }, [])
-
   const [activeTab, setActiveTab] = useState<TabType>('dashboard')
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [healthLoading, setHealthLoading] = useState<boolean>(true)
@@ -96,8 +93,31 @@ export function App() {
   const [summaryLoading, setSummaryLoading] = useState<boolean>(true)
 
   const [aiStatus, setAiStatus] = useState<AIStatusResponse | null>(null)
+  const [localAiStatus, setLocalAiStatus] = useState<LocalAIStatus>(() => localAiService.getStatus())
+  const [isRetryingLocalAi, setIsRetryingLocalAi] = useState<boolean>(false)
   const [isOfflineModalOpen, setIsOfflineModalOpen] = useState<boolean>(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
+
+  useEffect(() => {
+    const unsubscribe = localAiService.subscribe((status) => {
+      setLocalAiStatus(status)
+    })
+    localAiService.startBackgroundPolling(35000)
+    return () => {
+      unsubscribe()
+      localAiService.stopBackgroundPolling()
+    }
+  }, [])
+
+  const handleRetryLocalAi = useCallback(async () => {
+    setIsRetryingLocalAi(true)
+    try {
+      const res = await localAiService.checkConnection(true)
+      setLocalAiStatus(res)
+    } finally {
+      setIsRetryingLocalAi(false)
+    }
+  }, [])
 
   const [templates, setTemplates] = useState<TaskTemplate[]>([])
   const [agentPrompt, setAgentPrompt] = useState<string>('Investigate recall Batch B2231 and prepare response options.')
@@ -148,7 +168,31 @@ export function App() {
     setAgentError(null)
 
     try {
-      const runResult = await runAgentTask(textToRun, 'operations')
+      let clientSynthesis: string | undefined = undefined
+      let clientModel: string | undefined = undefined
+      let executionMode = 'dataset_fallback'
+
+      // If Local AI is connected on user's machine, execute client-side local inference
+      if (localAiStatus?.state === 'local_ai_connected') {
+        executionMode = 'local_ai'
+        clientModel = localAiStatus.model
+        try {
+          const sysPrompt =
+            'You are Arogya AI, an autonomous pharmaceutical distribution assistant operating under Good Distribution Practice (GDP). Provide executive reasoning and recommendations for this triage.'
+          clientSynthesis = await localAiService.generateText(textToRun, sysPrompt)
+        } catch (aiErr) {
+          console.warn('Client-side local Ollama inference failed, falling back to deterministic:', aiErr)
+          executionMode = 'dataset_fallback'
+        }
+      }
+
+      const runResult = await runAgentTask(
+        textToRun,
+        'operations',
+        clientSynthesis,
+        clientModel,
+        executionMode
+      )
       setActiveRun(runResult)
       await refreshSummary()
     } catch (err: unknown) {
@@ -229,6 +273,9 @@ export function App() {
           health={health}
           healthLoading={healthLoading}
           aiStatus={aiStatus}
+          localAiStatus={localAiStatus}
+          onRetryLocalAi={handleRetryLocalAi}
+          isRetryingLocalAi={isRetryingLocalAi}
           theme={theme}
           onToggleTheme={toggleTheme}
           onOpenOfflineModelModal={() => setIsOfflineModalOpen(true)}
@@ -454,6 +501,9 @@ export function App() {
             activeRun={activeRun}
             error={agentError}
             onNavigateToApprovals={() => setActiveTab('approvals')}
+            localAiStatus={localAiStatus}
+            onRetryLocalAi={handleRetryLocalAi}
+            onOpenOfflineModelModal={() => setIsOfflineModalOpen(true)}
           />
         )}
 
@@ -481,7 +531,9 @@ export function App() {
     <OfflineModelRequiredModal
       isOpen={isOfflineModalOpen}
       onClose={() => setIsOfflineModalOpen(false)}
-      onStatusChange={handleAIStatusChange}
+      onStatusChange={(newStatus) => {
+        if (newStatus) setLocalAiStatus(newStatus)
+      }}
     />
   </div>
   )

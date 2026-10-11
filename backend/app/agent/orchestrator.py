@@ -95,6 +95,9 @@ class AgentOrchestrator:
         mode: str = "operations",
         incident_id: Optional[int] = None,
         context: Optional[Dict[str, Any]] = None,
+        client_synthesis: Optional[str] = None,
+        client_model: Optional[str] = None,
+        execution_mode: Optional[str] = None,
     ) -> AgentRun:
         run_id = f"run-{uuid.uuid4().hex[:10]}"
         now = utcnow()
@@ -338,6 +341,9 @@ class AgentOrchestrator:
             verif_checks=verif_checks,
             proposals_count=len(proposals_created),
             requires_approval=intent.get("requires_approval", False),
+            client_synthesis=client_synthesis,
+            client_model=client_model,
+            execution_mode=execution_mode,
         )
 
         run.final_report_json = json.dumps(final_report)
@@ -834,6 +840,9 @@ class AgentOrchestrator:
         verif_checks: List[Dict[str, Any]],
         proposals_count: int,
         requires_approval: bool,
+        client_synthesis: Optional[str] = None,
+        client_model: Optional[str] = None,
+        execution_mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         options_compared = evidence.get("compare_operational_options", {}).get("options", [])
         facts: Dict[str, Any] = {}
@@ -1076,9 +1085,19 @@ class AgentOrchestrator:
                 "Freeze remaining 180 units of Batch B2231 in Central Depot."
             )
 
-        # Live AI Model Synthesis: If Ollama / configured AI provider is online,
-        # generate an intelligent executive synthesis narrative grounded in verified facts.
-        if (
+        # Determine Inference Source & Mode
+        inference_mode = "dataset_fallback"
+        inference_provider = "deterministic_dataset"
+        inference_model = None
+        ai_narrative = None
+
+        if client_synthesis and len(client_synthesis.strip()) > 10:
+            # Client executed inference on user machine via local Ollama
+            inference_mode = "local_ai"
+            inference_provider = "ollama"
+            inference_model = client_model or "qwen2.5-coder:7b"
+            ai_narrative = client_synthesis.strip()
+        elif (
             self.ai_provider
             and getattr(self.ai_provider, "check_health", None)
             and not os.getenv("PYTEST_CURRENT_TEST")
@@ -1086,6 +1105,9 @@ class AgentOrchestrator:
             try:
                 ai_health = self.ai_provider.check_health()
                 if ai_health.get("is_online") and ai_health.get("model_available"):
+                    inference_mode = "local_ai"
+                    inference_provider = ai_health.get("provider", "ollama")
+                    inference_model = ai_health.get("model", "qwen2.5-coder:7b")
                     synth_prompt = (
                         f"Operational challenge: {prompt}\n"
                         f"Verified Telemetry Facts: {summary}\n"
@@ -1099,12 +1121,26 @@ class AgentOrchestrator:
                         max_tokens=300,
                     )
                     if ai_text and len(ai_text.strip()) > 30 and not ai_text.startswith("Operational Assessment: The simulation"):
-                        summary = f"{ai_text.strip()}\n\n[Deterministic Telemetry Verification: {summary}]"
+                        ai_narrative = ai_text.strip()
             except Exception as e:
                 logger.info(f"AI report synthesis fallback to deterministic summary: {e}")
 
+        # Clearly format output distinguishing AI-generated reasoning vs dataset-backed deterministic output
+        if inference_mode == "local_ai" and ai_narrative:
+            summary_formatted = (
+                f"[AI-Generated Reasoning — {inference_model} (Local Ollama)]\n"
+                f"{ai_narrative}\n\n"
+                f"[Verified Database Records — GDP Compliant]\n"
+                f"{summary}"
+            )
+        else:
+            summary_formatted = (
+                f"[Dataset-Backed Deterministic Output — Verified Database Records]\n"
+                f"{summary}"
+            )
+
         return {
-            "incident_summary": summary,
+            "incident_summary": summary_formatted,
             "facts_retrieved": facts,
             "affected_batches": list(set(affected_batches)),
             "total_recipients": total_recipients,
@@ -1120,4 +1156,7 @@ class AgentOrchestrator:
             "verification_results": verif_checks,
             "proposed_actions_count": proposals_count,
             "approval_required": requires_approval,
+            "inference_mode": inference_mode,
+            "inference_provider": inference_provider,
+            "inference_model": inference_model,
         }

@@ -139,6 +139,130 @@ Arogya AI is structured into two deeply integrated operational layers:
 
 ---
 
+### 2.1 Hybrid Deployment Topology: Public Web + User Workstation
+
+Arogya AI combines a publicly deployed operations platform with private local AI inference running directly on the user's workstation. Cloud-hosted AI models are **not** required; when local AI is unavailable, the system automatically falls back to deterministic operations backed by canonical pharmaceutical datasets.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                       PUBLIC CLOUD INFRASTRUCTURE                                      │
+├─────────────────────────────────────────────────┬──────────────────────────────────────────────────────┤
+│               VERCEL EDGE NETWORK               │                    RENDER WEB SERVICE                │
+│       https://arogya-ai.vercel.app              │             https://arogya-ai.onrender.com           │
+│                                                 │                                                      │
+│  ┌───────────────────────────────────────────┐  │  ┌────────────────────────────────────────────────┐  │
+│  │ React 19 + Vite 8 SPA Dashboard           │  │  │ FastAPI Application Layer                      │  │
+│  │ • 10 Operational Views & Workspaces       │──┼──┼─▶ • REST Endpoints (/api/dashboard, /inventory)│  │
+│  │ • Local AI Connection Layer (7 States)    │  │  │ • Agent Orchestrator & Invariant Verifier      │  │
+│  │ • Dual-Mode UI Indicators & Badges        │  │  │ • Qualified Person (QP) Approval Gates         │  │
+│  │ • Deterministic Fallback UI               │  │  │ • Persistent SQLite / PostgreSQL Engine        │  │
+│  └───────────────────────────────────────────┘  │  └────────────────────────────────────────────────┘  │
+└──────────────────────┬──────────────────────────┴──────────────────────────┬───────────────────────────┘
+                       │                                                     │
+                       │ (Browser-to-Localhost)                              │ (Database Queries & State)
+                       ▼                                                     ▼
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    USER WORKSTATION (LOCAL MACHINE)                                    │
+├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                                        │
+│   [MODE A: LOCAL AI ACTIVE]                                  [MODE B: DATASET FALLBACK ACTIVE]         │
+│                                                                                                        │
+│   Direct Local Check or Companion Proxy                      Zero AI Dependency                        │
+│   ┌─────────────────────────────────────────┐                ┌──────────────────────────────────────┐  │
+│   │ Option 1: Native Ollama Service         │                │ Built-in SQLite Relational Database  │  │
+│   │ http://127.0.0.1:11434                  │                │ • 75 Master Products                 │  │
+│   │ • Model: qwen2.5-coder:7b               │                │ • 338 Physical Batches               │  │
+│   │ • Endpoints: /api/tags, /api/chat       │                │ • 420 Healthcare Accounts            │  │
+│   │ • 100% Private, Zero Cloud Tokens       │                │ • 5,174 Forward Dispatches           │  │
+│   └─────────────────────────────────────────┘                │ • 75 Suppliers & PO Ledgers          │  │
+│                       ▲                                      │ • IoT Cold-Chain Sensor Telemetry    │  │
+│                       │ (Local Loopback)                     │ • Predefined Deterministic Queries   │  │
+│   ┌───────────────────┴─────────────────────┐                │ • 100% Functional Without LLM        │  │
+│   │ Option 2: Arogya Companion Helper       │                └──────────────────────────────────────┘  │
+│   │ http://127.0.0.1:11435                  │                                                          │
+│   │ • Loopback-bound Python HTTP proxy      │                                                          │
+│   │ • CORS & Private Network Access (PNA)   │                                                          │
+│   │ • Optional TLS: python companion --ssl  │                                                          │
+│   └─────────────────────────────────────────┘                                                          │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 2.2 Dual Operational Modes: Mode A (Local AI) vs Mode B (Dataset Fallback)
+
+Arogya AI operates deterministically in two transparent modes. It **never** pretends an AI model is running when it is not, and it **never** hallucinates inventory quantities or completed actions:
+
+| Dimension | Mode A — Local AI Available | Mode B — Dataset Fallback Active |
+|---|---|---|
+| **Trigger Condition** | Ollama reachable on `127.0.0.1:11434` (or Companion `127.0.0.1:11435`) **AND** `qwen2.5-coder:7b` is installed. | Ollama unreachable, model not pulled, or browser security blocks local connection. |
+| **Header Badge** | `AI: Local — Connected` & `Model: qwen2.5-coder:7b` & `Mode: Local AI` | `AI: Offline` & `Mode: Dataset Fallback` |
+| **Workspace Banner** | Green banner indicating local model active with zero cloud token usage. | Amber banner indicating dataset fallback active with manual retry button. |
+| **Inference Source** | Local user workstation via Ollama API (`/api/chat`). | Local semantic entity extractor & deterministic database functions. |
+| **Dossier Distinction** | Tagged: `[AI-Generated Reasoning — qwen2.5-coder:7b (Local Ollama)]` | Tagged: `[Dataset-Backed Deterministic Output — Verified Database Records]` |
+| **Database Operations** | Verified against live SQLite database; invariants re-checked. | Identical live SQLite database; 100% metric and audit availability. |
+| **Consequential Actions** | Proposes staged actions (`pending_review`); requires QP approval. | Proposes staged actions (`pending_review`); requires QP approval. |
+| **External Privacy** | **Zero private hospital or patient records leave the user's machine.** | **Zero private records leave the system.** |
+
+---
+
+### 2.3 The 7-State Local AI Connection Machine
+
+The frontend connection layer ([`frontend/src/services/localAiService.ts`](file:///home/phoolghobhi/agentic-hackathon/frontend/src/services/localAiService.ts)) implements a deterministic 7-state finite state machine with automatic background polling (30s intervals with exponential backoff on failure) and immediate manual retry:
+
+```mermaid
+stateDiagram-v2
+    [*] --> CheckingLocalAI : Page Load / Reconnect Click
+
+    CheckingLocalAI --> LocalAIConnected : Ollama online AND qwen2.5-coder:7b found
+    CheckingLocalAI --> ModelMissing : Ollama online BUT qwen2.5-coder:7b missing
+    CheckingLocalAI --> BrowserBlocked : Mixed Content / PNA blocked by browser
+    CheckingLocalAI --> OllamaOffline : Connection refused / timeout / companion offline
+    CheckingLocalAI --> RequestFailed : Network error / malformed response
+
+    ModelMissing --> CheckingLocalAI : Retry / User pulls model
+    BrowserBlocked --> CheckingLocalAI : Retry / User starts Companion
+    OllamaOffline --> CheckingLocalAI : Retry / User starts Ollama
+    RequestFailed --> CheckingLocalAI : Manual Retry
+
+    ModelMissing --> DatasetFallbackActive : Auto-activated
+    BrowserBlocked --> DatasetFallbackActive : Auto-activated
+    OllamaOffline --> DatasetFallbackActive : Auto-activated
+    RequestFailed --> DatasetFallbackActive : Auto-activated
+
+    DatasetFallbackActive --> CheckingLocalAI : User clicks "Retry Local AI Connection"
+```
+
+1. **`Checking local AI`**: Probes native Ollama (`GET /api/tags`) and Companion (`GET /health`) with a 3.5s timeout.
+2. **`Local AI connected`**: Both Ollama and `qwen2.5-coder:7b` are verified. Mode A enabled.
+3. **`Model missing`**: Ollama is running, but the configured model is missing. Guides user to run `ollama pull qwen2.5-coder:7b`.
+4. **`Ollama not installed or not running`**: Port 11434 unreachable. Mode B activated.
+5. **`Local connection blocked by browser security`**: HTTPS browser blocks direct HTTP loopback. Prompts user to start the Arogya Companion Helper (`python3 scripts/arogya_companion.py`).
+6. **`Local AI request failed`**: Transient inference failure or dropped connection.
+7. **`Dataset fallback active`**: Safe fallback operational state where all dataset queries and tools run deterministically.
+
+---
+
+### 2.4 Browser Security, Private Network Access (PNA) & The Arogya Companion Helper
+
+When a website is hosted on a secure public origin (such as Vercel: `https://arogya-ai.vercel.app`), modern web browsers enforce strict security boundaries:
+1. **Mixed Content Restrictions**: Modern browsers prevent secure HTTPS web pages from making unencrypted HTTP requests to `http://127.0.0.1:11434`.
+2. **Private Network Access (PNA)**: Chromium browsers send a preflight request (`Access-Control-Request-Private-Network: true`) when a public webpage attempts to contact private IP addresses (`127.0.0.1`).
+3. **CORS Restrictions**: Standard Ollama does not include wildcards or production Vercel origins in its default `Access-Control-Allow-Origin` headers.
+
+#### How Arogya AI Solves This Securely:
+- **No Insecure Recommendations**: Arogya AI **never** asks users to disable browser security flags or expose Ollama to `0.0.0.0`.
+- **Direct Check First**: In environments where direct access succeeds (local development on `http://localhost:5173` or browsers with PNA policies configured), direct native Ollama communication is used.
+- **Arogya Companion Helper (`scripts/arogya_companion.py`)**: A lightweight, zero-dependency Python script running locally on the user's workstation:
+  - Strictly binds to loopback (`127.0.0.1:11435`).
+  - Implements origin validation allowing only local dev origins and `https://*.vercel.app`.
+  - Responds to PNA preflights with `Access-Control-Allow-Private-Network: true`.
+  - Proxies inference requests directly to local Ollama on `127.0.0.1:11434`.
+  - Supports self-signed TLS via `--ssl` for environments enforcing HTTPS-to-HTTPS loopback communication.
+  - Zero external packages required (uses Python standard library: `http.server`, `urllib.request`, `ssl`).
+
+---
+
 ## 3. The 7-Stage Cognitive Reasoning Loop
 
 Every natural language operational query or incident investigation runs through a deterministic 7-stage cognitive loop implemented in [`backend/app/agent/orchestrator.py`](file:///home/phoolghobhi/agentic-hackathon/backend/app/agent/orchestrator.py):
@@ -1014,20 +1138,88 @@ python scripts/import_datasets.py
 
 ---
 
-### 10.4 Local AI Setup (Ollama)
-Pull the recommended model (`qwen2.5-coder:7b`):
-```bash
-# Start Ollama service (if not already running)
-ollama serve
+### 10.4 Local AI Setup (Ollama & qwen2.5-coder:7b)
 
-# Pull the model (in a separate terminal)
+Arogya AI utilizes the user's local Ollama installation for private, zero-token clinical AI inference. Follow these steps to set up Ollama on your operating system:
+
+#### Step 1: Install Ollama
+- **macOS**: Install via Homebrew `brew install ollama` or download the installer from [ollama.com/download](https://ollama.com/download).
+- **Linux**: Run the official installation script:
+  ```bash
+  curl -fsSL https://ollama.com/install.sh | sh
+  ```
+- **Windows**: Download and run `OllamaSetup.exe` from [ollama.com/download](https://ollama.com/download).
+
+#### Step 2: Start Ollama Service
+Ensure the Ollama background daemon is running:
+```bash
+ollama serve
+```
+By default, Ollama listens on `http://127.0.0.1:11434`.
+
+#### Step 3: Pull the Required Model
+Arogya AI is optimized for `qwen2.5-coder:7b`:
+```bash
 ollama pull qwen2.5-coder:7b
 ```
-*Note: If Ollama is not installed or left stopped, Arogya AI automatically activates the built-in `DeterministicSemanticEngine` with 100% functionality and zero external token dependencies.*
+
+#### Step 4: Verify Local Ollama Health
+Run a quick terminal test to verify the service and installed models:
+```bash
+# Check installed models via native Ollama API
+curl -s http://127.0.0.1:11434/api/tags | grep -o "qwen2.5-coder:7b"
+```
+If `qwen2.5-coder:7b` appears in the output, local AI setup is complete.
 
 ---
 
-### 10.5 Backend Installation & Startup
+### 10.5 Arogya Companion Helper (Optional Local Secure Bridge)
+
+When accessing a public hosted instance (such as Vercel: `https://arogya-ai.vercel.app`), your browser may restrict direct HTTP communication from an HTTPS origin to `http://127.0.0.1:11434` due to Mixed Content or Private Network Access (PNA) security policies.
+
+To enable local AI inference securely without lowering browser security settings, start the optional lightweight companion helper included in the repository:
+
+#### Step 1: Start Companion Helper
+```bash
+# From repository root (uses standard library Python 3 — no pip dependencies required)
+python3 scripts/arogya_companion.py
+```
+Output:
+```
+[Companion] Binding securely to loopback 127.0.0.1:11435
+[Companion] Upstream Ollama target: http://127.0.0.1:11434
+[Companion] Authorized origins: ['localhost', '127.0.0.1', '*.vercel.app']
+[Companion] Ready. Listening on http://127.0.0.1:11435
+```
+
+#### Step 2: Run with TLS / SSL (For Strict Mixed-Content Browsers)
+If your browser strictly rejects mixed HTTP content from HTTPS origins:
+```bash
+python3 scripts/arogya_companion.py --ssl
+```
+This automatically generates a transient loopback certificate and listens on `https://127.0.0.1:11435`.
+
+#### Step 3: Verify Companion Health
+```bash
+curl -s http://127.0.0.1:11435/health
+# Response: {"status":"ok","companion":"active","ollama_target":"http://127.0.0.1:11434"}
+```
+
+---
+
+### 10.6 Browser Security & Troubleshooting Guide
+
+| Issue / State | Root Cause | Resolution |
+|---|---|---|
+| **`AI: Offline` / `Mode: Dataset Fallback`** | Ollama is not installed or not running on port 11434. | Start Ollama with `ollama serve`. Arogya AI automatically detects when it starts; click **Retry Local AI Connection** in the header or modal. All dataset features remain 100% operational. |
+| **`Model missing`** | Ollama is running, but `qwen2.5-coder:7b` has not been pulled. | In your terminal, run `ollama pull qwen2.5-coder:7b`. Then click **Retry Local AI Connection**. |
+| **`Local connection blocked by browser security`** | The browser is blocking HTTPS-to-HTTP local loopback access (Mixed Content or Chrome Private Network Access). | Run `python3 scripts/arogya_companion.py`. Arogya AI will automatically detect the companion on port 11435. You do **not** need to disable browser flags. |
+| **Backend Online vs AI Offline** | Backend and AI provider statuses are strictly decoupled. | The backend on Render is completely healthy; only local inference is offline. Dashboard metrics, inventory, batch numbers, and audit records will continue to work from real database records. |
+| **Connection Timeout** | Local machine under heavy CPU/GPU load. | The local AI connection layer enforces a 3.5s timeout for health checks and 45s for inference. Adjust endpoint or timeout in **System Settings & Governance**. |
+
+---
+
+### 10.7 Backend Installation & Startup
 ```bash
 # Navigate to backend directory
 cd backend
@@ -1048,7 +1240,7 @@ The backend initializes the SQLite database (`backend/arogya.db`), auto-migrates
 
 ---
 
-### 10.6 Frontend Installation & Startup
+### 10.8 Frontend Installation & Startup
 ```bash
 # In a separate terminal, navigate to frontend directory
 cd frontend
@@ -1063,22 +1255,34 @@ Open your browser to `http://localhost:5173` to access the **Operations Control 
 
 ---
 
-### 10.7 Running Automated Tests
+### 10.9 Automated Verification Suite (All 70 Pytest Checks)
+
+Arogya AI features a comprehensive 70-test automated verification suite covering local AI connectivity, fallback mechanics, companion security, invariant enforcement, and supply chain workflows:
+
 ```bash
-# Run complete test suite (all 61 tests)
-cd backend
-.venv/bin/pytest tests/ -v
+# Run full automated test suite (all 70 tests pass)
+./.venv/bin/pytest backend/tests/ -v
 
-# Run Dataset Integration test suite only
-.venv/bin/pytest tests/test_dataset_integration.py -v
+# Run Local AI & Dataset Fallback test suite specifically
+./.venv/bin/pytest backend/tests/test_local_ai_and_fallback.py -v
 
-# Run What-If Simulator test suite only
-.venv/bin/pytest tests/test_simulator.py -v
+# Run Dataset Integration test suite
+./.venv/bin/pytest backend/tests/test_dataset_integration.py -v
+
+# Run What-If Simulator test suite
+./.venv/bin/pytest backend/tests/test_simulator.py -v
 
 # Verify frontend TypeScript build
-cd ../frontend
-npm run build
+cd frontend && npm run build
 ```
+
+#### Test Suite Breakdown:
+- **`test_local_ai_and_fallback.py` (9 tests)**: Mode A native Ollama connection, missing model detection, offline fallback activation, HTTP timeout safeguards, decoupled backend/AI health tracking, prompt output labeling, companion origin CORS restriction, and QP human approval gates.
+- **`test_dataset_integration.py` (17 tests)**: Exact product, customer, supplier, and batch counts from canonical datasets; overdue PO detection; recall dispatch blocking; cold-chain audits; and 12 master natural language operational queries.
+- **`test_master_scenarios.py` (20 tests)**: Regulatory recall blocks, forward/reverse traceability, thermal excursion logging, supplier return windows, shortage replan, zero unapproved mutation proofs, persistence across restarts.
+- **`test_simulator.py` (5 tests)**: Sandbox zero-mutation invariants, deterministic mathematics, and scenario generation.
+- **`test_workflow.py` (3 tests)**: SOP validation and execution.
+- **`test_arogya.py` & `test_health.py` (16 tests)**: Core endpoints, QP approval workflows, and health probes.
 
 ---
 
@@ -1205,25 +1409,16 @@ If staying on SQLite without provisioning a separate PostgreSQL instance:
 
 ---
 
-### 11.5 AI Model & Offline Model Required Behavior
+### 11.5 Local AI Privacy Architecture & Automatic Fallback (No Cloud AI Required)
 
-#### Why the AI Model Runs Offline Locally:
-Arogya AI utilizes a local `qwen2.5-coder:7b` model through Ollama on your local machine for privacy, regulatory data isolation, and zero-cost inference.
-- Free/starter cloud hosts do not include 16GB VRAM GPUs to host a 7B LLM.
-- Therefore, in public web deployments where Ollama is not running on the cloud server, the frontend displays the polished **"Offline Model Required"** modal.
-- Users can click **Check Connection** to run a live health check against `/api/ai/status` or view instructions on setting up Ollama.
-
-#### Connecting a Cloud AI Provider in Production (Optional):
-To activate live AI text generation in a public cloud deployment without self-hosting Ollama, configure an OpenAI-compatible cloud provider in the backend environment:
-```env
-AI_PROVIDER=openai
-AI_BASE_URL=https://api.openai.com/v1
-AI_MODEL=gpt-4o-mini
-AI_API_KEY=sk-your-api-key
-```
-*(Compatible with OpenAI, Groq, Together AI, DeepSeek, or an Ollama instance exposed via Cloudflare Tunnel)*
-
-If no AI provider is configured or Ollama is offline, Arogya AI automatically falls back to its built-in **Deterministic Pharmaceutical Semantic Engine**, ensuring that all dashboard calculations, inventory audits, recall triage, and What-If simulations work with 100% reliability.
+Arogya AI is architected from the ground up to **never require a paid cloud-hosted AI model**:
+- **Zero Cloud AI Dependency**: The entire application is 100% functional out of the box using canonical pharmaceutical datasets and deterministic business logic.
+- **Client-Side Workstation Inference**: When local AI is enabled, the browser directly communicates with Ollama running locally on the operator's own workstation (`127.0.0.1:11434` or Companion Helper `127.0.0.1:11435`).
+- **Complete Clinical Data Privacy**: Sensitive hospital ICU orders, patient-critical antibiotic distributions, and cold-chain temperature excursion alerts are **never sent to external cloud AI providers**.
+- **Transparent Output Labeling**: Reports and agent dossiers explicitly disclose their generation mode:
+  - Mode A: `[AI-Generated Reasoning — qwen2.5-coder:7b (Local Ollama)]`
+  - Mode B: `[Dataset-Backed Deterministic Output — Verified Database Records]`
+- **Decoupled Backend Health**: When Ollama is offline or uninstalled, the backend is **not** flagged as offline. The system reports `AI: Offline` and `Mode: Dataset Fallback` while the backend remains green and operational.
 
 ---
 
@@ -1233,6 +1428,13 @@ If no AI provider is configured or Ollama is offline, Arogya AI automatically fa
 | Variable | Required | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `VITE_API_URL` | **Yes** (Prod) | `""` (proxies to `/api` locally) | Public backend URL (e.g. `https://arogyaai-backend.onrender.com`). |
+
+#### User Workstation Settings (Configurable in UI via System Settings):
+| Setting Key | Default | Description |
+| :--- | :--- | :--- |
+| `arogya_local_ai_endpoint` | `http://127.0.0.1:11434` | User's local native Ollama API endpoint. |
+| `arogya_companion_endpoint` | `http://127.0.0.1:11435` | Local companion proxy endpoint for browser security / PNA bypass. |
+| `arogya_local_ai_model` | `qwen2.5-coder:7b` | Preferred local LLM model for operations reasoning. |
 
 #### Backend (`backend/.env` / Render Environment Variables):
 | Variable | Required | Default | Description |
@@ -1244,10 +1446,9 @@ If no AI provider is configured or Ollama is offline, Arogya AI automatically fa
 | `CORS_ORIGINS` | No | `http://localhost:5173,...` | Comma-separated list of allowed frontend domains. |
 | `CORS_ORIGIN_REGEX` | No | `^https:\/\/.*\.vercel\.app$` | Regex allowing any Vercel production or preview URL. |
 | `BUSINESS_REFERENCE_DATE`| No | `2026-11-16` | Business reference date matching supply-chain datasets. |
-| `AI_PROVIDER` | No | `ollama` | Provider: `ollama`, `openai`, or `semantic`. |
+| `AI_PROVIDER` | No | `ollama` | Provider: `ollama` (default local), `openai`, or `semantic`. |
 | `AI_BASE_URL` | No | `http://localhost:11434/v1` | Base URL for OpenAI-compatible completions API. |
 | `AI_MODEL` | No | `qwen2.5-coder:7b` | Model name for chat and operational analysis. |
-| `AI_API_KEY` | No | `""` | API key if using cloud LLM provider. |
 | `AI_TIMEOUT_SECONDS` | No | `45` | HTTP request timeout for model inference. |
 
 ---
@@ -1257,12 +1458,15 @@ If no AI provider is configured or Ollama is offline, Arogya AI automatically fa
 Before and after deployment, verify these checks:
 
 - [x] **Frontend Production Build**: `npm --prefix frontend run build` completes with 0 errors.
-- [x] **Backend Test Suite**: All 61 automated pytest checks pass (`pytest backend/tests`).
-- [x] **Backend Health Endpoint**: `GET /api/health` returns HTTP 200 with `status: "ok"`.
-- [x] **AI Status Endpoint**: `GET /api/ai/status` returns HTTP 200 with clear dynamic status label.
+- [x] **Backend Test Suite**: All 70 automated pytest checks pass (`pytest backend/tests`).
+- [x] **Local AI Test Suite**: All 9 dedicated local AI & fallback checks pass (`pytest backend/tests/test_local_ai_and_fallback.py`).
+- [x] **Backend Health Endpoint**: `GET /api/health` returns HTTP 200 with `status: "ok"`, independently tracking AI status.
+- [x] **AI Status Endpoint**: `GET /api/ai/status` returns HTTP 200 with dynamic mode and model information.
 - [x] **CORS Preflight**: OPTIONS request from `https://*.vercel.app` receives `Access-Control-Allow-Origin`.
+- [x] **Companion Security**: Loopback binding and strict regex origin filtering verified.
 - [x] **Data Reconciliation**: Backend imports 75 products, 420 customers, 75 suppliers, 338 batches, and 5,174 dispatches on first boot.
 - [x] **SPA Route Rewrites**: Refreshing direct routes on Vercel serves `index.html` without 404 errors.
+- [x] **Safety Gates**: All consequential database actions require human Qualified Person (QP) authorization.
 
 ---
 

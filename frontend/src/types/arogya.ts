@@ -521,3 +521,38 @@ export interface StageSimulationProposalResponse {
   approval_center_url: string
 }
 
+// ---------------------------------------------------------------------------
+// Local Ollama AI & Connection State Machine Types
+// ---------------------------------------------------------------------------
+export type LocalAIState =
+  | 'checking_local_ai'
+  | 'local_ai_connected'
+  | 'model_missing'
+  | 'ollama_not_installed_or_not_running'
+  | 'local_connection_blocked_by_browser_security'
+  | 'local_ai_request_failed'
+  | 'dataset_fallback_active'
+
+export interface LocalAIStatus {
+  state: LocalAIState
+  stateLabel: string
+  isOnline: boolean
+  modelAvailable: boolean
+  model: string
+  provider: string
+  latencyMs?: number
+  endpointUrl: string
+  availableModels: string[]
+  message: string
+  browserSecurityBlocked?: boolean
+  helperAvailable?: boolean
+  lastChecked: string
+}
+
+export interface LocalAIConfig {
+  ollamaUrl: string
+  helperUrl: string
+  modelName: string
+  timeoutMs: number
+}
+

@@ -86,6 +86,9 @@ def run_agent_task(payload: AgentTaskRequest, db: Session = Depends(get_db)):
         prompt=payload.prompt,
         mode=payload.mode,
         incident_id=payload.incident_id,
+        client_synthesis=payload.client_synthesis,
+        client_model=payload.client_model,
+        execution_mode=payload.execution_mode,
     )
     return _build_run_detail(db, run)
 

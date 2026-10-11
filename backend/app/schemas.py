@@ -164,6 +164,9 @@ class AgentTaskRequest(BaseModel):
     prompt: str = Field(..., min_length=3, description="Task prompt or problem statement")
     mode: str = Field(default="demo", description="'demo' or 'live'")
     incident_id: Optional[int] = None
+    client_synthesis: Optional[str] = None
+    client_model: Optional[str] = None
+    execution_mode: Optional[str] = None
 
 
 class AgentChatRequest(BaseModel):
@@ -216,6 +219,9 @@ class FinalReportSchema(BaseModel):
     verification_results: List[VerificationCheck]
     proposed_actions_count: int
     approval_required: bool
+    inference_mode: Optional[str] = "dataset_fallback"
+    inference_provider: Optional[str] = "deterministic_dataset"
+    inference_model: Optional[str] = None
 
 
 class AgentRunDetailSchema(BaseModel):
