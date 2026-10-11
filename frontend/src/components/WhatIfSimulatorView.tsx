@@ -371,7 +371,7 @@ export function WhatIfSimulatorView({ onNavigateToApprovals }: WhatIfSimulatorVi
             onClick={handleExplainScenario}
             disabled={explainingAi}
             style={{
-              backgroundColor: '#0284c7',
+              backgroundColor: 'var(--accent-primary)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '6px',
@@ -505,7 +505,7 @@ export function WhatIfSimulatorView({ onNavigateToApprovals }: WhatIfSimulatorVi
               <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>
                 DEMAND SURGE
               </label>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
                 +{demandSurge}%
               </span>
             </div>
@@ -516,7 +516,7 @@ export function WhatIfSimulatorView({ onNavigateToApprovals }: WhatIfSimulatorVi
               step="5"
               value={demandSurge}
               onChange={(e) => setDemandSurge(Number(e.target.value))}
-              style={{ width: '100%', accentColor: '#38bdf8' }}
+              style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
             />
           </div>
 
@@ -706,7 +706,7 @@ export function WhatIfSimulatorView({ onNavigateToApprovals }: WhatIfSimulatorVi
               <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
                 {scenarioType === 'recall' ? 'Hospital Units (Acute Care)' : 'Hospital Demand'}
               </span>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#38bdf8', marginTop: '0.25rem' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '0.25rem' }}>
                 {simulationResult.baseline.hospital_units_at_risk ??
                   simulationResult.baseline.normal_hospital_demand ??
                   '—'}
@@ -861,7 +861,7 @@ export function WhatIfSimulatorView({ onNavigateToApprovals }: WhatIfSimulatorVi
                           </div>
                           <div>
                             <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Estimated Cost:</span>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#38bdf8' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-primary)' }}>
                               ₹{strat.estimated_cost.toLocaleString()}
                             </div>
                           </div>

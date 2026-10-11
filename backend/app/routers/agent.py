@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db, SessionLocal
 from app.db_models import AgentRun, AgentEvent, ActionProposal
 from app.agent.orchestrator import AgentOrchestrator
+from app.tools.registry import ToolRegistry
 from app.schemas import (
     AgentTaskRequest,
+    AgentChatRequest,
     AgentRunDetailSchema,
     AgentEventSchema,
     ActionProposalSchema,
@@ -86,6 +88,52 @@ def run_agent_task(payload: AgentTaskRequest, db: Session = Depends(get_db)):
         incident_id=payload.incident_id,
     )
     return _build_run_detail(db, run)
+
+
+@router.post("/chat")
+def chat_with_agent(payload: AgentChatRequest, db: Session = Depends(get_db)):
+    """Conversational natural-language interface for pharmaceutical operations agent."""
+    orchestrator = AgentOrchestrator(db)
+    run = orchestrator.run_task(
+        prompt=payload.message,
+        mode=payload.mode or "operations",
+        context=payload.context,
+    )
+    run_detail = _build_run_detail(db, run)
+    report = run_detail.final_report
+
+    summary_text = report.incident_summary if report else f"Investigation completed for: {payload.message}"
+    recommendation_text = report.recommendation if report else "Review the retrieved operational facts and verification checks."
+    full_response = f"{summary_text}\n\n**Recommendation:** {recommendation_text}"
+
+    return {
+        "response": full_response,
+        "summary": summary_text,
+        "recommendation": recommendation_text,
+        "facts": report.facts_retrieved if report else {},
+        "affected_batches": report.affected_batches if report else [],
+        "quantities_reconciled": report.quantities_reconciled if report else {},
+        "verification_results": [v.model_dump() for v in report.verification_results] if report else [],
+        "proposed_actions": [p.model_dump() for p in run_detail.proposals],
+        "run_id": run.id,
+        "state": run.state,
+    }
+
+
+@router.post("/create-data")
+def agent_create_data(payload: Dict[str, Any], db: Session = Depends(get_db)):
+    """Allows creating operational records directly through the Agent Workspace with audit logging and verification.
+    Supports record_type: batch, purchase_order, temperature_log, dispatch, customer, supplier, recall.
+    """
+    record_type = payload.get("record_type")
+    data = payload.get("data", {})
+    if not record_type:
+        raise HTTPException(status_code=400, detail="record_type is required.")
+    try:
+        res = ToolRegistry.create_operational_record(db, record_type=record_type, data=data)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/runs/{run_id}", response_model=AgentRunDetailSchema)

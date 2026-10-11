@@ -30,11 +30,17 @@ export function AuditLogView({ onInspectRunInWorkspace }: AuditLogViewProps) {
 
   const handleOpenRunModal = async (runId: string) => {
     setModalLoading(true)
+    const existing = runs.find((r) => r.run_id === runId)
+    if (existing) {
+      setSelectedRun(existing)
+    }
     try {
       const detail = await fetchRunDetails(runId)
       setSelectedRun(detail)
     } catch {
-      // ignore
+      if (!existing) {
+        alert(`Run ${runId} dossier could not be retrieved from database.`)
+      }
     } finally {
       setModalLoading(false)
     }

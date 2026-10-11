@@ -76,7 +76,7 @@ export const StagesView: React.FC<StagesViewProps> = ({ stages, isDemo: _isDemo 
                 <div className="node-title">{stage.title}</div>
                 <div className="node-meta">
                   <span>{stage.duration_ms}ms</span>
-                  {stage.is_demo && <span className="demo-tag">DEMO</span>}
+                  {stage.is_demo && <span className="demo-tag">SIMULATED</span>}
                 </div>
               </button>
               {index < stages.length - 1 && (
@@ -108,7 +108,7 @@ export const StagesView: React.FC<StagesViewProps> = ({ stages, isDemo: _isDemo 
                 Execution: {selectedStage.duration_ms}ms
               </span>
               {selectedStage.is_demo && (
-                <span className="badge badge-demo">DEMO</span>
+                <span className="badge badge-demo">SIMULATED</span>
               )}
             </div>
           </div>

@@ -17,7 +17,7 @@ export const LimitationsPanel: React.FC<LimitationsPanelProps> = ({
         <div>
           <h2 className="section-title">5. System Limitations & Safety Guardrails</h2>
           <p className="section-desc">
-            Production-readiness constraints, sandbox safety boundaries, and hackathon demo disclosures.
+            Production-readiness constraints, sandbox safety boundaries, and compliance disclosures.
           </p>
         </div>
         {isDemo && <span className="badge badge-demo">DISCLOSURE</span>}
@@ -27,7 +27,7 @@ export const LimitationsPanel: React.FC<LimitationsPanelProps> = ({
         <div className="disclosure-icon">⚠️</div>
         <div className="disclosure-body">
           <h4 className="disclosure-title">
-            {isDemo ? 'Evaluation Notice: Demo Simulation Mode' : 'Live Agent Execution'}
+            {isDemo ? 'Evaluation Notice: Heuristic Simulation Mode' : 'Live Agent Execution'}
           </h4>
           <p className="disclosure-text">{disclaimer}</p>
         </div>

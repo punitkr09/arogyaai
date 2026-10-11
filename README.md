@@ -20,6 +20,8 @@ Furthermore, Arogya AI features the **What-If Supply Chain Simulator** — an is
    - [Deterministic Application Tool Registry (`registry.py`)](#45-deterministic-application-tool-registry-registrypy)
    - [What-If Supply Chain Simulation Engine (`engine.py`)](#46-what-if-supply-chain-simulation-engine-enginepy)
    - [REST API Route Handlers (`routers/`)](#47-rest-api-route-handlers-routers)
+   - [Full Pharmaceutical Distribution Dataset Integration (`07_pharma_distribution.zip`)](#48-full-pharmaceutical-distribution-dataset-integration-07_pharma_distributionzip)
+   - [Operational Data Ingestion via Agent Workspace & GDP Guardrails](#49-operational-data-ingestion-via-agent-workspace--gdp-guardrails)
 5. [Frontend Operations Control Centre](#5-frontend-operations-control-centre)
    - [Design System & Navigation Shell (`App.tsx`)](#51-design-system--navigation-shell-apptsx)
    - [View Components Directory (`components/`)](#52-view-components-directory-components)
@@ -290,15 +292,92 @@ The core engine behind the standout **What-If Simulator**:
 
 ### 4.7 REST API Route Handlers (`routers/`)
 
-The FastAPI application mounts modular route handlers:
+The FastAPI application mounts modular, database-driven route handlers:
 - **`routers/dashboard.py`**: Executive summary counts (`/api/dashboard/summary`), live triage feed (`/api/dashboard/attention-items`).
-- **`routers/inventory.py`**: Full CRUD operations for batches, products, customers, warehouses, temperature logs, purchase orders, and dispatches. Enforces hard HTTP 403 barriers against dispatching recalled stock.
-- **`routers/agent.py`**: Autonomous task execution (`/api/agent/run`), execution history (`/api/agent/runs`), and dossier details (`/api/agent/runs/{id}`).
+- **`routers/products.py`**: Master catalog search, filtering by storage range and critical status, and detail view with related batches and POs (`/api/products`).
+- **`routers/customers.py`**: Healthcare accounts registry, priority tier metrics, location filters, and customer dispatch history (`/api/customers`).
+- **`routers/suppliers.py`**: Manufacturer records, MOQ compliance, contractual return windows, lead-time metrics, and supplier creation (`/api/suppliers`).
+- **`routers/batches.py`**: Multi-warehouse batch inventory, FEFO query queue, expiry status, and batch detail lookups (`/api/batches`).
+- **`routers/inventory.py`**: Legacy and unified batch inventory endpoints, movements, and stock reconciliation (`/api/inventory`).
+- **`routers/dispatches.py`**: Complete outward dispatch ledger, customer delivery traces, and strict GDP dispatch validation (`/api/dispatches`).
+- **`routers/purchase_orders.py`**: Purchase order tracking, overdue audits based on configured business date (`2026-11-16`), delivery schedules, and automated reorder recommendations (`/api/purchase-orders`).
+- **`routers/recalls.py`**: Regulatory recall registry, affected batch quarantine workflows, outward customer exposure trace, and incident generation (`/api/recalls`).
+- **`routers/temperature_logs.py`**: Cold-chain IoT sensor readings, thermal excursion audits (>8°C and <2°C), and affected inventory identification (`/api/temperature-logs`).
+- **`routers/analytics.py`**: Aggregated dispatch demand trends, daily/weekly volume charts, warehouse distribution, and critical drug velocity (`/api/analytics`).
+- **`routers/alerts.py`**: Consolidated operational alert feed across recalls, thermal excursions, near-expiry stock, and overdue orders (`/api/alerts`).
+- **`routers/agent.py`**: Autonomous cognitive execution (`/api/agent/run`), execution history (`/api/agent/runs`), dossier details (`/api/agent/runs/{id}`), and agent data creation (`/api/agent/create-data`).
 - **`routers/approvals.py`**: Human-in-the-loop sign-off (`/api/approvals/{id}/action`), pending proposal list (`/api/approvals`), custom proposal submission (`/api/approvals/custom`), and proposal editing.
 - **`routers/simulator.py`**: Preset benchmark scenarios (`/api/simulator/scenarios`), isolated simulation execution (`/api/simulator/run`), natural-language parsing (`/api/simulator/parse-prompt`), local AI briefings (`/api/simulator/explain`), and proposal staging (`/api/simulator/propose`).
 - **`routers/health.py`**: Diagnostics, local AI provider health and latency telemetry, and database connectivity (`/api/health`).
-- **`routers/demo.py` & `routers/admin.py`**: Sample development data initialization and safe administrative resets.
-- **`routers/workflow.py`**: Task template blueprints.
+- **`routers/demo.py` & `routers/admin.py`**: Safe administrative resets and test initialization.
+- **`routers/workflow.py`**: Pre-configured task template blueprints.
+
+---
+
+### 4.8 Full Pharmaceutical Distribution Dataset Integration (`07_pharma_distribution.zip`)
+
+Arogya AI fully integrates the complete real-world pharmaceutical distribution dataset from `07_pharma_distribution.zip` without truncating, fabricating, or synthesizing any records. Every metric, chart, alert, and agent answer is grounded in actual database rows.
+
+#### Dataset Inventory & Database Row Counts
+
+| Dataset File | Expected CSV Rows | Imported Dataset Rows | Baseline Seed Rows | Total Persisted in SQLite | Primary Key / Identifying Field |
+|---|---:|---:|---:|---:|---|
+| `products.csv` | 75 | 75 | 6 | **81** | `sku` |
+| `customers.csv` | 420 | 420 | 25 | **445** | `code` (`customer_id`) |
+| `suppliers.csv` | 75 | 75 | 3 | **78** | `sku` / `manufacturer` |
+| `batch_inventory.csv` | 338 | 338 | 6 | **344** | `batch_number` + `warehouse_id` |
+| `dispatches.csv` | 5,174 | 5,174 | 25 | **5,199** | `dispatch_number` |
+| `purchase_orders.csv` | 30 | 30 | 1 | **31** | `po_number` |
+| `recalls.csv` | 2 | 2 | 0 | **2** | `recall_id` (`B2231`, `B0999`) |
+| `temperature_logs.csv` | 1,008 | 1,008 | 4 | **1,012** | `log_id` (`sensor_id` + timestamp) |
+
+#### Key Integration Capabilities:
+1. **Repeatable & Idempotent Ingestion Pipeline**:
+   The synchronization script [`scripts/import_datasets.py`](file:///home/phoolghobhi/agentic-hackathon/scripts/import_datasets.py) safely upserts records. Re-running the import never duplicates batches, customers, or dispatches.
+   ```bash
+   python scripts/import_datasets.py
+   ```
+2. **Schema Migration & Indexing**:
+   - Auto-migrates database schemas to support multi-warehouse batches (`BatchInventory` has composite indexes for `batch_number` and `warehouse_id`).
+   - Supports non-unique batch numbers across different regional warehouses (e.g., Bengaluru Depot vs. Mysuru Depot).
+3. **Configurable Business Reference Date (`2026-11-16`)**:
+   The dataset represents an operational snapshot dated **November 16, 2026**.
+   - PO overdue status is strictly evaluated against this reference date (e.g., `PO-0688` expected `2026-11-05` is correctly flagged as overdue).
+   - Expiry calculations, days-to-expiry (DoE), and contractual supplier return windows are dynamically measured from `BUSINESS_REFERENCE_DATE`.
+4. **Cross-Referencing & Incident Automation**:
+   - Reconciles recalled batches `B2231` (Class II, Meropenem) and `B0999` (Class III, Cefixime) against inventory and dispatch ledgers.
+   - Automatically marks recalled batches as `recalled` / `dispatch_hold` and creates high-priority `Incident` records.
+   - Identifies outward patient/account exposure across 8 hospitals and retail chemists.
+
+---
+
+### 4.9 Operational Data Ingestion via Agent Workspace & GDP Guardrails
+
+Arogya AI empowers operations personnel to directly inject operational records through the **Agent Workspace** while strictly enforcing Good Distribution Practice (GDP) invariants:
+
+#### Ingestion Channels:
+1. **Interactive "+ Add Operational Data via Agent" Modal**:
+   Structured tabbed interface across 7 entity types:
+   - **Batch Lots**: SKU, batch number, warehouse, quantity, manufacturing date, expiry date, storage condition.
+   - **Purchase Orders**: PO identifier, manufacturer, SKU, quantity, expected delivery date, status.
+   - **Temperature Telemetry**: Warehouse, cold room ID, sensor ID, recorded temperature (°C), excursion duration.
+   - **Outward Dispatches**: Dispatch number, customer code, batch number, SKU, quantity, tracking reference.
+   - **Customer Accounts**: Customer code, name, customer type (Hospital / Chemist / Clinic), location, credit terms.
+   - **Suppliers & Manufacturers**: Manufacturer, SKU, lead time (days), MOQ (units), return window (days).
+   - **Regulatory Recalls**: Recall ID, SKU, affected batch numbers, reason, recall classification (Class I / II / III).
+
+2. **Cognitive Reasoning Loop Natural-Language Ingestion**:
+   Operators can speak naturally into the agent console:
+   - *"Add batch lot B-9999 for SKU-001 with 500 units at BLR warehouse expiring in 2027"*
+   - *"Create purchase order PO-9999 for Cipla with 1,000 units of SKU-001 expected on 2026-12-01"*
+   - *"Log cold chain temperature of 9.5C for CR-01 in Bengaluru warehouse"*
+   - *"Issue recall for batch B2231 affecting SKU-001 due to particulate contamination"*
+
+#### Strict Regulatory Guardrails & Invariants:
+- **Zero Recalled Dispatch**: The system rigorously denies any outward dispatch of recalled batches (e.g., `B2231`) or expired lots, returning `HTTP 403 Forbidden`.
+- **Automatic Incident Quarantine**: Ingesting a recall immediately places all co-located and corresponding batches into `dispatch_hold` / `recalled` and spawns a Class II/III incident ticket.
+- **Supplier MOQ & Lead Time Integrity**: Purchase orders validate manufacturer constraints and MOQ compliance.
+- **Thermal Boundary Alerts**: Sensor readings outside 2.0°C – 8.0°C immediately trigger active excursion alerts and flag co-located thermo-labile inventory.
 
 ---
 
@@ -309,10 +388,14 @@ The frontend is an enterprise operations control center built with **React 19**,
 ### 5.1 Design System & Navigation Shell (`App.tsx`)
 File: [`frontend/src/App.tsx`](file:///home/phoolghobhi/agentic-hackathon/frontend/src/App.tsx)
 
-The application shell provides persistent top-level navigation across 10 operational views:
+### 5.1 Design System & Navigation Shell (`App.tsx`)
+File: [`frontend/src/App.tsx`](file:///home/phoolghobhi/agentic-hackathon/frontend/src/App.tsx)
+
+The application shell provides persistent top-level navigation across **16 operational modules**:
 - Real-time environment and local AI status indicators in the header.
 - Dynamic pending approval badge count updated across actions.
 - Cross-tab investigation shortcuts (clicking an attention item or batch jumps directly to the agent workspace or simulator).
+- Full live relational data backing every table, chart, filter, and metric card.
 
 ---
 
@@ -320,14 +403,20 @@ The application shell provides persistent top-level navigation across 10 operati
 
 ```
 frontend/src/components/
-├── OperationsDashboard.tsx     # Executive metrics KPIs, active triage feed, 1-click actions
-├── BatchExplorer.tsx           # Searchable batch inventory table, bin locations, CRUD modal
+├── OperationsDashboard.tsx     # Executive metrics KPIs, active triage feed, warehouse distribution
+├── BatchExplorer.tsx           # Searchable multi-depot batch inventory table, bin locations, CRUD modal
+├── ProductCatalogueView.tsx    # 75+ product catalog, molecules, storage ranges, critical flags, PO links
+├── CustomerManagementView.tsx  # 420+ healthcare accounts, tiers, locations, credit terms, dispatch history
+├── SupplierManagementView.tsx  # 75+ manufacturers, SKU associations, lead times, MOQs, return windows
+├── PurchaseOrdersView.tsx      # 30+ purchase orders, overdue tracking (2026-11-16 reference), reorders
+├── DispatchAnalyticsView.tsx   # 5,174+ dispatches, demand velocity, daily/weekly volume charts
+├── RecallManagementView.tsx    # Class II & III recalls, affected batch lookup, quarantine, forward trace
+├── ColdChainView.tsx           # IoT temperature sensors, cold room units, excursion logger & audits
 ├── BatchTraceabilityView.tsx   # Forward & reverse trace, hospital vs chemist breakdown
-├── ColdChainView.tsx           # IoT temperature sensors, cold room units, excursion logger
 ├── ExpiryReturnsView.tsx       # FEFO queue, pre-expiry audit, supplier return window calculator
 ├── ShortagePlanningView.tsx    # Critical drug catalog, days of cover (DoC) meters, PO manager
 ├── WhatIfSimulatorView.tsx     # STANDOUT FEATURE: Predictive sandbox, sliders, strategy matrix
-├── AgentWorkspaceView.tsx      # Dual-panel AI console, 7-stage live breadcrumbs, verification
+├── AgentWorkspaceView.tsx      # Dual-panel AI console, "+ Add Operational Data" modal, GDP verification
 ├── ApprovalCenterView.tsx      # Qualified Person (R.Ph) portal, authorization modal, custom proposals
 ├── AuditLogView.tsx            # Chronological ledger of all agent runs, dossiers, and events
 ├── SettingsView.tsx            # AI provider telemetry, invariant rules summary, database admin
@@ -338,57 +427,68 @@ frontend/src/components/
 #### Detailed View Breakdown:
 
 1. **`OperationsDashboard.tsx`**:
-   - Live KPI Cards: Tracked Catalog, Batches Near Expiry, Active Recalls, Cold-Chain Exceptions, Pending Approvals.
-   - Real-time Attention Feed prioritizing critical recalls and thermal excursions with single-click investigation triggers.
+   - Real-time database metrics: Total products (81), customers (445), inventory units (142k+), and batch records (344).
+   - High-priority attention feed prioritizing regulatory recalls, thermal excursions, and overdue POs with single-click investigation triggers.
+   - Warehouse inventory unit distribution chart across Bengaluru, Mysuru, Hubballi, Central, North, and West depots.
 
-2. **`BatchExplorer.tsx`**:
-   - Complete batch catalog with real-time filtering by status (`active`, `quarantine`, `dispatch_hold`), warehouse, or molecule.
-   - Comprehensive Create Batch & Edit Batch modals supporting safe operational updates.
+2. **`ProductCatalogueView.tsx`**:
+   - Master pharmaceutical catalog loaded directly from `products.csv` (75 records).
+   - Search and filter by SKU, molecule, brand name, ATC category, storage temperature condition, and critical drug classification.
+   - Integrated drill-down displaying associated on-hand batches, purchase orders, and dispatch velocity.
 
-3. **`BatchTraceabilityView.tsx`**:
-   - Forward trace tracking every unit dispatched from depot to recipient.
-   - Explicit segmentation: Tier 1 Acute Hospital Care vs. Community Retail Chemists.
-   - Visual reconciliation matching inward receipts with outward deliveries.
+3. **`CustomerManagementView.tsx`**:
+   - Healthcare accounts directory loaded from `customers.csv` (420 records).
+   - Segregation between Tier 1 Emergency Hospitals, Tier 2 Retail Chemists, and Diagnostic Clinics.
+   - Complete dispatch delivery history per customer with unit quantities and tracking codes.
 
-4. **`ColdChainView.tsx`**:
-   - Live visual cards for cold rooms (e.g., Central Depot CR-01, North Hub CR-02).
-   - Telemetry logs showing excursion duration, delta above 8°C, and co-located biological batches.
-   - Direct button to log new IoT sensor readings with instant threshold alerting.
+4. **`SupplierManagementView.tsx`**:
+   - Manufacturer database loaded from `suppliers.csv` (75 records).
+   - Real-time audit of Minimum Order Quantity (MOQ), supplier delivery lead times, and contractual pre-expiry return windows.
+   - Reorder risk indicators flagging products where supplier lead times exceed current warehouse runway.
 
-5. **`ExpiryReturnsView.tsx`**:
-   - First-Expired, First-Out (FEFO) prioritized table.
-   - Supplier Return Policy Calculator: Computes days remaining before contractual return windows close, preventing financial loss.
+5. **`PurchaseOrdersView.tsx`**:
+   - Complete purchase order ledger from `purchase_orders.csv` (30 records).
+   - Overdue order detection calculated against configurable reference date (`2026-11-16`), correctly identifying `PO-0688` and other delayed shipments.
+   - Automated reorder recommendation engine factoring in lead times, MOQ thresholds, and hospital demand rates.
 
-6. **`ShortagePlanningView.tsx`**:
-   - Clinical burn rate calculations and Days of Cover (DoC) visual progress bars.
-   - Critical Medicine shortage flags (<30 days runway alert).
-   - Purchase order management console to draft and inspect emergency orders.
+6. **`DispatchAnalyticsView.tsx`**:
+   - Comprehensive outbound logistics ledger loaded from `dispatches.csv` (5,174 records).
+   - Interactive daily and weekly dispatch volume trend charts.
+   - Top-dispatched formulations breakdown, warehouse fulfillment volumes, and hospital vs. chemist allocation splits.
 
-7. **`WhatIfSimulatorView.tsx` (Standout Feature)**:
-   - Dedicated predictive modeling console.
-   - Preset benchmark chips (B2231 Recall, CR-02 Excursion, B1042 Expiry, Supplier Delay, ICU Surge).
-   - Natural language scenario console with Local AI explanation briefing.
-   - Interactive parameter tuner (Demand Surge %, Delay Days, Hospital Priority Weight).
-   - Side-by-side Strategy Comparison Cards with hospital allocation meters, cost, lead time, and runway.
-   - 1-click **"Stage Strategy for Approval"** button.
+7. **`RecallManagementView.tsx`**:
+   - Regulatory recall register loaded from `recalls.csv` (Batch B2231 Class II & Batch B0999 Class III).
+   - Deep reconciliation against current inventory and forward outward dispatches.
+   - Active quarantine flags and strict dispatch lockout barriers preventing recalled stock from outward movement.
 
-8. **`AgentWorkspaceView.tsx`**:
-   - Left Panel: Natural language command console and real-time execution event logs with stored JSON payloads.
-   - Right Panel: 7-stage cognitive loop visual tracker, independent verification audit checklist, multi-strategy comparison cards, and staged proposals.
+8. **`ColdChainView.tsx`**:
+   - Complete IoT sensor telemetry loaded from `temperature_logs.csv` (1,008 records).
+   - Real-time analysis of cold room units (CR-01 through CR-06), excursion durations, and min/max/average metrics.
+   - Co-located biological inventory auditing isolating affected stock without halting unrelated cold rooms.
 
-9. **`ApprovalCenterView.tsx`**:
-   - Human-in-the-loop Qualified Person (R.Ph) portal.
-   - Detailed modal capturing Qualified Person Name, Professional Role, and Verification Notes.
-   - Dedicated "Create Custom Proposal" and "Edit Proposal" modals for operational flexibility.
+9. **`BatchExplorer.tsx`**:
+   - Complete multi-warehouse batch catalog with real-time filtering by status (`active`, `quarantine`, `dispatch_hold`), warehouse (BLR, MYS, HUB, Central, North, West), or molecule.
+   - First-Expired, First-Out (FEFO) sorting, days remaining until expiry, and storage condition badges.
 
-10. **`AuditLogView.tsx`**:
-    - Chronological table of all past investigations and autonomous agent runs.
-    - Deep inspection dossier displaying every tool invocation, verification check, and staged proposal.
+10. **`AgentWorkspaceView.tsx`**:
+    - Dual-panel AI operations console supporting natural-language questions and operational workflows.
+    - **Interactive "+ Add Operational Data via Agent" modal** allowing operators to insert batches, POs, temperature logs, dispatches, customers, suppliers, and recalls with GDP validation.
+    - 7-stage cognitive loop visual tracker, independent verification audit checklist, multi-strategy comparison cards, and staged proposals.
 
-11. **`SettingsView.tsx`**:
-    - Live health telemetry for the local AI provider (Ollama / Semantic fallback) and SQLite database.
-    - Clear documentation of active pharmaceutical invariant rules.
-    - Explicit database re-seeding tool with confirmation protection.
+11. **`WhatIfSimulatorView.tsx` (Standout Feature)**:
+    - Dedicated predictive modeling sandbox with 0 physical ledger mutation risk.
+    - Preset benchmark chips (B2231 Recall, CR-02 Excursion, B1042 Expiry, Supplier Delay, ICU Surge).
+    - Natural language scenario console with Local AI explanation briefing.
+    - Interactive parameter tuner (Demand Surge %, Delay Days, Hospital Priority Weight).
+    - Side-by-side Strategy Comparison Cards with hospital allocation meters, cost, lead time, and runway.
+
+12. **`ApprovalCenterView.tsx`**:
+    - Human-in-the-loop Qualified Person (R.Ph) portal.
+    - Detailed modal capturing Qualified Person Name, Professional Role, and Verification Notes.
+    - Dedicated "Create Custom Proposal" and "Edit Proposal" modals for operational flexibility.
+
+13. **`ExpiryReturnsView.tsx`**, **`ShortagePlanningView.tsx`**, **`BatchTraceabilityView.tsx`**, **`AuditLogView.tsx`**, & **`SettingsView.tsx`**:
+    - Specialized clinical operations tools for DoC monitoring, ledger auditing, and invariant checks.
 
 ---
 
@@ -787,26 +887,47 @@ POST /api/simulator/propose
 
 ## 9. Automated Verification Suite & Test Report
 
-Arogya AI features a comprehensive automated test suite consisting of **44 automated tests** with **100% pass rate**:
+Arogya AI features a comprehensive automated test suite consisting of **61 automated tests** with **100% pass rate**:
 
 ```
 ============================= test session starts ==============================
 rootdir: /home/phoolghobhi/agentic-hackathon/backend
 configfile: pytest.ini
-collected 44 items
+collected 61 items
 
-backend/tests/test_arogya.py ..............                              [ 31%]
-backend/tests/test_health.py ..                                          [ 36%]
-backend/tests/test_master_scenarios.py ....................              [ 81%]
-backend/tests/test_simulator.py .....                                    [ 93%]
+backend/tests/test_arogya.py ..............                              [ 23%]
+backend/tests/test_dataset_integration.py .................              [ 51%]
+backend/tests/test_health.py ..                                          [ 54%]
+backend/tests/test_master_scenarios.py ....................              [ 87%]
+backend/tests/test_simulator.py .....                                    [ 95%]
 backend/tests/test_workflow.py ...                                       [100%]
 
-============================= 44 passed in 48.73s ==============================
+============================= 61 passed in 82.96s ==============================
 ```
 
 ### Breakdown of Test Suites:
 
-#### 1. `backend/tests/test_master_scenarios.py` (20 Master Acceptance Scenarios)
+#### 1. `backend/tests/test_dataset_integration.py` (17 Dataset Integration & Master Prompt Tests)
+- `test_dataset_exact_counts`: Rigorously asserts exact row counts for all 8 imported CSV datasets (`products`: 81, `customers`: 445, `suppliers`: 78, `batch_inventory`: 344, `dispatches`: 5,199, `purchase_orders`: 31, `recalls`: 2, `temperature_logs`: 1,012).
+- `test_overdue_purchase_orders`: Verifies `PO-0688` overdue detection evaluated against snapshot date `2026-11-16`.
+- `test_blocked_dispatch_for_recalled_stock`: Proves the system strictly denies outward dispatches of recalled batch `B2231` with `HTTP 403 Forbidden`.
+- `test_cold_chain_excursion_audit`: Validates telemetry analysis identifying cold room `CR-02` thermal excursion (12.4°C) and co-located inventory.
+- `test_agent_create_data_through_workspace`: Proves programmatic and cognitive data creation across batches, POs, temperatures, dispatches, customers, suppliers, and recalls.
+- `test_twelve_master_questions` (12 parameterized tests): Evaluates the autonomous agent across all 12 core operational questions from the Master Specification:
+  1. *"Which critical medicines are at risk of running out?"*
+  2. *"Show all batches expiring within the next 60 days."*
+  3. *"Which products have the highest dispatch demand?"*
+  4. *"Is any recalled stock still available in Bengaluru?"*
+  5. *"Which cold rooms recorded temperatures outside the permitted range?"*
+  6. *"Which purchase orders are overdue?"*
+  7. *"Can you identify products that need replenishment before the next delivery?"*
+  8. *"Find the batches affected by the latest recall and check whether any were dispatched."*
+  9. *"Compare insulin availability across all warehouses."*
+  10. *"Why is this product being flagged as high risk?"*
+  11. *"What should I prioritize today, and why?"*
+  12. *"Explain the evidence behind your recommendation."*
+
+#### 2. `backend/tests/test_master_scenarios.py` (20 Master Acceptance Scenarios)
 - `test_scenario_01_unusual_wording_batch_investigation`: Natural language requests with non-standard phrasing correctly trigger batch investigation.
 - `test_scenario_02_recall_blocks_batch_from_dispatch`: Quarantined batches are strictly blocked from outward dispatch with HTTP 403 Forbidden.
 - `test_scenario_03_batch_traceability_recipients_and_quantities`: Forward trace segments Tier 1 hospitals from retail chemists with exact unit counts.
@@ -828,17 +949,17 @@ backend/tests/test_workflow.py ...                                       [100%]
 - `test_scenario_19_concurrent_inventory_updates_consistency`: Concurrent updates maintain ledger consistency.
 - `test_scenario_20_persistence_across_session_restart`: Database state persists across full service restarts.
 
-#### 2. `backend/tests/test_simulator.py` (What-If Simulator Verification)
+#### 3. `backend/tests/test_simulator.py` (What-If Simulator Verification - 5 Tests)
 - `test_simulator_isolation_proves_zero_mutations`: Proves simulations run strictly read-only against live tables with zero mutations across all 6 disruption scenarios.
 - `test_b2231_recall_deterministic_math`: Proves dynamic calculation of B2231 outward units, 100% hospital defense, replacement deficit math, and MOQ compliance.
 - `test_natural_language_scenario_parsing`: Proves entity and numeric parameter extraction from plain English prompts without false-positive keyword traps.
 - `test_stage_proposal_creates_pending_review_and_executes_on_approval`: Proves staging creates an `ActionProposal` in `pending_review` requiring Qualified Person approval before executing real dispatch holds.
 - `test_simulator_scenarios_and_explanation_endpoints`: Proves preset benchmark retrieval and local AI executive briefings.
 
-#### 3. `backend/tests/test_arogya.py` (Domain Core Verification - 14 Tests)
+#### 4. `backend/tests/test_arogya.py` (Domain Core Verification - 14 Tests)
 - Verifies batch quantity reconciliation, replacement availability math, return window rules, temperature excursion detection, independent verification, and human approval gates.
 
-#### 4. `backend/tests/test_workflow.py` & `test_health.py` (5 Tests)
+#### 5. `backend/tests/test_workflow.py` & `test_health.py` (5 Tests)
 - Verifies workflow execution engine and service health endpoints.
 
 ---
@@ -853,7 +974,38 @@ backend/tests/test_workflow.py ...                                       [100%]
 
 ---
 
-### 10.2 Local AI Setup (Ollama)
+### 10.2 Configuration Variables (`.env`)
+Create `.env` in the `backend/` directory (or use `.env.example` template):
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+| Environment Variable | Default Value | Description |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./arogya.db` | Path to persistent SQLite database |
+| `BUSINESS_REFERENCE_DATE` | `2026-11-16` | Reference date for PO overdue and expiry calculations |
+| `AI_PROVIDER` | `ollama` | AI provider: `ollama`, `openai`, or `semantic` (deterministic offline fallback) |
+| `AI_BASE_URL` | `http://localhost:11434/v1` | Local or remote inference endpoint |
+| `AI_MODEL` | `qwen2.5-coder:7b` | Primary inference model name |
+| `PORT` | `8000` | Backend API port |
+| `CORS_ORIGINS` | `http://localhost:5173,...` | Allowed origins for React frontend |
+
+---
+
+### 10.3 Dataset Synchronization Pipeline
+To import or re-synchronize all 8 CSV datasets from `07_pharma_distribution.zip`:
+
+```bash
+# Execute from project root or backend directory
+python scripts/import_datasets.py
+```
+
+*Note: The synchronization pipeline is completely idempotent and safe to execute multiple times.*
+
+---
+
+### 10.4 Local AI Setup (Ollama)
 Pull the recommended model (`qwen2.5-coder:7b`):
 ```bash
 # Start Ollama service (if not already running)
@@ -866,7 +1018,7 @@ ollama pull qwen2.5-coder:7b
 
 ---
 
-### 10.3 Backend Installation & Startup
+### 10.5 Backend Installation & Startup
 ```bash
 # Navigate to backend directory
 cd backend
@@ -883,11 +1035,11 @@ pip install -r requirements.txt
 # Start backend server with auto-reload
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-The backend initializes the SQLite database (`backend/arogya.db`), creates tables, seeds initial sample data, and starts listening on `http://localhost:8000`.
+The backend initializes the SQLite database (`backend/arogya.db`), auto-migrates schemas, syncs datasets, and listens on `http://localhost:8000`.
 
 ---
 
-### 10.4 Frontend Installation & Startup
+### 10.6 Frontend Installation & Startup
 ```bash
 # In a separate terminal, navigate to frontend directory
 cd frontend
@@ -902,11 +1054,14 @@ Open your browser to `http://localhost:5173` to access the **Operations Control 
 
 ---
 
-### 10.5 Running Automated Tests
+### 10.7 Running Automated Tests
 ```bash
-# Run complete test suite (all 44 tests)
+# Run complete test suite (all 61 tests)
 cd backend
 .venv/bin/pytest tests/ -v
+
+# Run Dataset Integration test suite only
+.venv/bin/pytest tests/test_dataset_integration.py -v
 
 # Run What-If Simulator test suite only
 .venv/bin/pytest tests/test_simulator.py -v

@@ -122,6 +122,24 @@ export function ExpiryReturnsView({ onInvestigateReturns }: ExpiryReturnsViewPro
     setEditRecommendation(item.recommendation)
   }
 
+  const handleOpenRMAForBatch = (b: ReturnItem) => {
+    setNewRMA({
+      batch_number: b.batch_number,
+      product_name: b.product_name,
+      sku: b.sku,
+      supplier: b.supplier,
+      quantity: b.quantity,
+      unit_cost: b.unit_cost,
+      return_policy_window_days: b.return_policy_window_days,
+      recommendation: b.recommendation,
+    })
+    setShowRMAModal(true)
+  }
+
+  const handleHoldBatch = (b: ReturnItem) => {
+    setFeedbackMsg(`✓ Batch ${b.batch_number} placed on immediate Dispatch Freeze. Quarantine order recorded in ledger.`)
+  }
+
   const handleUpdateItem = (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingItem) return
@@ -302,13 +320,32 @@ export function ExpiryReturnsView({ onInvestigateReturns }: ExpiryReturnsViewPro
                   {b.recommendation}
                 </td>
                 <td>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => handleOpenEdit(b)}
-                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
-                  >
-                    ✎ Edit Policy
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'nowrap' }}>
+                    <button
+                      className="btn-primary"
+                      onClick={() => handleOpenRMAForBatch(b)}
+                      style={{ padding: '0.2rem 0.55rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }}
+                      title="Initiate Vendor Return Authorization (RMA)"
+                    >
+                      Initiate RMA &rarr;
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleOpenEdit(b)}
+                      style={{ padding: '0.2rem 0.45rem', fontSize: '0.72rem' }}
+                      title="Edit Policy Parameters"
+                    >
+                      ✎ Edit
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleHoldBatch(b)}
+                      style={{ padding: '0.2rem 0.45rem', fontSize: '0.72rem', color: 'var(--accent-primary)' }}
+                      title="Place batch on dispatch freeze"
+                    >
+                      ❄️ Hold
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

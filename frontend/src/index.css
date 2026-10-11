@@ -1,50 +1,125 @@
-:root {
-  /* Warm off-white background palette */
-  --bg-page: #fbf9f5;
+:root,
+[data-theme="light"] {
+  /* Warm Off-White, Creamy Parchment & Sand Canvas */
+  --bg-page: #f8f6f0;
   --bg-surface: #ffffff;
   --bg-card: #ffffff;
-  --bg-card-subtle: #f5f2eb;
-  --bg-subtle: #f2eee6;
+  --bg-card-subtle: #f4efe6;
+  --bg-subtle: #faf8f5;
   --bg-input: #ffffff;
-  --bg-tag: #eee9df;
+  --bg-tag: #eee7db;
+  --bg-sidebar: #ffffff;
+  --text-sidebar: #6b635b;
+  --text-sidebar-hover: #1c1917;
+  --bg-sidebar-hover: #f4efe6;
 
-  /* Terracotta / Rust-Red Accent */
-  --accent-terracotta: #c05638;
-  --accent-terracotta-dark: #a84428;
-  --accent-terracotta-light: #fbeee9;
-  --accent-terracotta-border: #f2cbbe;
+  /* Iconic Terracotta Orange Accents */
+  --accent-primary: #ea580c;
+  --accent-primary-hover: #c2410c;
+  --accent-primary-light: rgba(234, 88, 12, 0.09);
+  --accent-primary-border: rgba(234, 88, 12, 0.28);
 
-  /* Charcoal Typography */
-  --text-main: #1e242b;
-  --text-muted: #56616d;
-  --text-dim: #7f8a96;
+  /* Warm Terracotta / Amber Highlight Accents */
+  --accent-terracotta: #ea580c;
+  --accent-terracotta-dark: #c2410c;
+  --accent-terracotta-light: rgba(234, 88, 12, 0.12);
+  --accent-terracotta-border: rgba(234, 88, 12, 0.35);
+
+  /* Warm Stone Typography */
+  --text-main: #1c1917;
+  --text-muted: #57534e;
+  --text-dim: #78716c;
   --text-inverse: #ffffff;
 
-  /* Borders & Shadows */
-  --border-subtle: #e5dfd5;
-  --border-medium: #d6cfc3;
-  --border-focus: #c05638;
-  --shadow-sm: 0 1px 2px rgba(30, 36, 43, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(30, 36, 43, 0.08), 0 2px 4px -1px rgba(30, 36, 43, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(30, 36, 43, 0.08), 0 4px 6px -2px rgba(30, 36, 43, 0.04);
+  /* Warm Borders & Soft Shadows */
+  --border-subtle: #e6dfd5;
+  --border-medium: #d6ccbe;
+  --border-focus: #ea580c;
+  --shadow-sm: 0 1px 3px rgba(41, 37, 36, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(41, 37, 36, 0.07), 0 2px 4px -2px rgba(41, 37, 36, 0.07);
+  --shadow-lg: 0 10px 15px -3px rgba(41, 37, 36, 0.1), 0 4px 6px -4px rgba(41, 37, 36, 0.1);
 
   /* Status Badges */
   --status-critical-bg: #fee2e2;
-  --status-critical-text: #991b1b;
-  --status-critical-border: #fecaca;
+  --status-critical-text: #b91c1c;
+  --status-critical-border: #fca5a5;
 
   --status-warning-bg: #fef3c7;
-  --status-warning-text: #92400e;
-  --status-warning-border: #fde68a;
+  --status-warning-text: #b45309;
+  --status-warning-border: #fcd34d;
 
   --status-success-bg: #dcfce7;
-  --status-success-text: #166534;
-  --status-success-border: #bbf7d0;
+  --status-success-text: #15803d;
+  --status-success-border: #86efac;
 
-  --status-info-bg: #e0f2fe;
-  --status-info-text: #075985;
-  --status-info-border: #bae6fd;
+  --status-info-bg: #ffedd5;
+  --status-info-text: #c2410c;
+  --status-info-border: #fed7aa;
 
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  /* Warm Deep Charcoal & Stone Dark Palette */
+  --bg-page: #141210;
+  --bg-surface: #1c1917;
+  --bg-card: #23201d;
+  --bg-card-subtle: #292524;
+  --bg-subtle: #1c1917;
+  --bg-input: #171513;
+  --bg-tag: #292524;
+  --bg-sidebar: #171513;
+  --text-sidebar: #a8a29e;
+  --text-sidebar-hover: #fafaf9;
+  --bg-sidebar-hover: rgba(255, 237, 213, 0.06);
+
+  /* Warm Orange Accents */
+  --accent-primary: #f97316;
+  --accent-primary-hover: #ea580c;
+  --accent-primary-light: rgba(249, 115, 22, 0.15);
+  --accent-primary-border: rgba(249, 115, 22, 0.35);
+
+  /* Terracotta / Amber Highlight Accents */
+  --accent-terracotta: #f97316;
+  --accent-terracotta-dark: #ea580c;
+  --accent-terracotta-light: rgba(249, 115, 22, 0.18);
+  --accent-terracotta-border: rgba(249, 115, 22, 0.4);
+
+  /* Typography for Warm Dark */
+  --text-main: #fafaf9;
+  --text-muted: #d6d3d1;
+  --text-dim: #a8a29e;
+  --text-inverse: #141210;
+
+  /* Borders & Shadows */
+  --border-subtle: rgba(255, 237, 213, 0.1);
+  --border-medium: rgba(255, 237, 213, 0.18);
+  --border-focus: #f97316;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.7);
+
+  /* Status Badges */
+  --status-critical-bg: rgba(239, 68, 68, 0.2);
+  --status-critical-text: #f87171;
+  --status-critical-border: rgba(239, 68, 68, 0.4);
+
+  --status-warning-bg: rgba(245, 158, 11, 0.2);
+  --status-warning-text: #fbbf24;
+  --status-warning-border: rgba(245, 158, 11, 0.4);
+
+  --status-success-bg: rgba(16, 185, 129, 0.2);
+  --status-success-text: #34d399;
+  --status-success-border: rgba(16, 185, 129, 0.4);
+
+  --status-info-bg: rgba(249, 115, 22, 0.18);
+  --status-info-text: #fb923c;
+  --status-info-border: rgba(249, 115, 22, 0.4);
+
+  color-scheme: dark;
+}
+
+:root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, Consolas, monospace;
 

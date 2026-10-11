@@ -18,7 +18,87 @@ export interface DashboardSummary {
   pending_approvals: number
   attention_items: AttentionItem[]
   timestamp: string
+  total_customers?: number
+  total_inventory_units?: number
+  total_dispatches?: number
+  total_dispatched_units?: number
+  critical_drugs_count?: number
+  low_stock_products_count?: number
+  delayed_purchase_orders?: number
+  overdue_purchase_orders?: number
+  business_reference_date?: string
+  warehouse_distribution?: Record<string, number>
 }
+
+export interface Supplier {
+  id: number
+  name: string
+  sku?: string
+  product_id?: number
+  contact_email?: string
+  phone?: string
+  lead_time_days: number
+  min_order_quantity: number
+  return_window_days: number
+  product?: Product
+}
+
+export interface Dispatch {
+  id: number
+  dispatch_number: string
+  customer_id?: number
+  batch_id?: number
+  product_id?: number
+  batch_number?: string
+  sku?: string
+  quantity: number
+  dispatch_date: string
+  status: string
+  tracking_ref?: string
+  customer_name?: string
+  customer_type?: string
+  customer_code?: string
+  customer_location?: string
+  product_name?: string
+  is_critical_drug?: boolean
+  customer?: Customer
+  product?: Product
+  batch?: BatchSummary
+}
+
+export interface Recall {
+  id: number
+  recall_date: string
+  sku: string
+  product_id?: number
+  product_name?: string
+  batches: string
+  batch_number?: string
+  reason: string
+  recall_class: string
+  classification?: string
+  status: string
+  product?: Product
+  affected_batches?: string[]
+  remaining_warehouse_stock?: number
+  dispatched_units?: number
+  dispatches_count?: number
+}
+
+export interface AnalyticsOverview {
+  total_dispatches: number
+  total_quantity: number
+  total_units_dispatched?: number
+  unique_products: number
+  unique_customers: number
+  top_products_by_volume: Array<{ sku: string; name: string; brand: string; quantity: number; dispatches_count: number }>
+  customer_segmentation: Array<{ segment: string; quantity: number; dispatches_count: number; percent: number }>
+  warehouse_distribution: Array<{ warehouse: string; quantity: number; dispatches_count: number }>
+  daily_trend: Array<{ date: string; quantity: number; dispatches_count: number }>
+  daily_trends?: Array<{ date: string; orders: number; quantity: number }>
+  top_locations?: Array<{ location: string; quantity: number; orders: number }>
+}
+
 
 export interface Product {
   id: number
@@ -200,6 +280,8 @@ export interface Customer {
   code: string
   name: string
   customer_type: string
+  location?: string
+  credit_terms?: string
   priority_tier: number
   contact_email?: string
   phone?: string
@@ -233,12 +315,17 @@ export interface PurchaseOrder {
   product_name: string
   product_sku: string
   supplier_name: string
+  manufacturer?: string
+  sku?: string
   quantity: number
   unit_price: number
   total_amount: number
   status: string
   order_date: string
   expected_delivery_date?: string
+  is_overdue?: boolean
+  days_overdue?: number
+  urgency?: string
   notes?: string
 }
 
@@ -291,6 +378,8 @@ export interface CreateCustomerInput {
   code: string
   name: string
   customer_type: string
+  location?: string
+  credit_terms?: string
   priority_tier?: number
   contact_email?: string
   phone?: string
@@ -300,6 +389,8 @@ export interface CreateCustomerInput {
 export interface UpdateCustomerInput {
   name?: string
   customer_type?: string
+  location?: string
+  credit_terms?: string
   priority_tier?: number
   contact_email?: string
   phone?: string

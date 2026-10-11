@@ -44,7 +44,7 @@ export const ProblemInput: React.FC<ProblemInputProps> = ({
               onClick={() => onModeChange('demo')}
               title="Runs structured heuristic simulation without requiring live LLM credits"
             >
-              Demo Simulation
+              Heuristic Simulation
             </button>
             <button
               type="button"

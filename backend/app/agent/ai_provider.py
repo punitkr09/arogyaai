@@ -79,6 +79,8 @@ class OpenAICompatibleProvider(BaseAIProvider):
         self.api_key = api_key
         self.provider_name = provider_name
         self.timeout_seconds = timeout_seconds
+        self._last_offline_time = 0.0
+        self._cached_online = None
 
     def get_provider_name(self) -> str:
         return self.provider_name
@@ -99,13 +101,14 @@ class OpenAICompatibleProvider(BaseAIProvider):
 
         t0 = time.time()
         try:
-            with httpx.Client(timeout=4.0) as client:
+            with httpx.Client(timeout=httpx.Timeout(2.0, connect=1.0)) as client:
                 res = client.get(models_url, headers=headers)
                 latency = round((time.time() - t0) * 1000, 1)
                 if res.status_code == 200:
                     data = res.json()
                     available_models = [m.get("id") or m.get("name") for m in data.get("data", [])]
                     model_found = self.model in available_models or any(self.model in str(m) for m in available_models)
+                    self._cached_online = True
                     return {
                         "is_online": True,
                         "provider": self.provider_name,
@@ -116,6 +119,8 @@ class OpenAICompatibleProvider(BaseAIProvider):
                         "message": f"Connected to {self.provider_name} at {self.base_url} ({latency}ms)",
                     }
                 else:
+                    self._cached_online = False
+                    self._last_offline_time = time.time()
                     return {
                         "is_online": False,
                         "provider": self.provider_name,
@@ -125,6 +130,8 @@ class OpenAICompatibleProvider(BaseAIProvider):
                     }
         except Exception as e:
             latency = round((time.time() - t0) * 1000, 1)
+            self._cached_online = False
+            self._last_offline_time = time.time()
             return {
                 "is_online": False,
                 "provider": self.provider_name,
@@ -142,6 +149,11 @@ class OpenAICompatibleProvider(BaseAIProvider):
         max_tokens: int = 2048,
         timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
+        import time
+        now_ts = time.time()
+        if self._cached_online is False and (now_ts - self._last_offline_time) < 30.0:
+            raise RuntimeError(f"AI Provider '{self.provider_name}' is offline (cached).")
+
         chat_url = f"{self.base_url}/chat/completions"
         headers = self._get_headers()
 
@@ -160,8 +172,9 @@ class OpenAICompatibleProvider(BaseAIProvider):
             payload["response_format"] = {"type": "json_object"}
 
         actual_timeout = timeout or self.timeout_seconds
+        client_timeout = httpx.Timeout(actual_timeout, connect=1.0)
         try:
-            with httpx.Client(timeout=actual_timeout) as client:
+            with httpx.Client(timeout=client_timeout) as client:
                 res = client.post(chat_url, headers=headers, json=payload)
                 if res.status_code != 200:
                     raise RuntimeError(f"AI Provider error HTTP {res.status_code}: {res.text}")
@@ -170,15 +183,24 @@ class OpenAICompatibleProvider(BaseAIProvider):
                 if not choices:
                     raise ValueError("No choices returned from AI Provider.")
                 content = choices[0].get("message", {}).get("content", "")
+                self._cached_online = True
                 return {
                     "content": content,
                     "provider": self.provider_name,
                     "model": self.model,
                     "raw_response": data,
                 }
+        except (httpx.ConnectTimeout, httpx.ConnectError) as ce:
+            self._cached_online = False
+            self._last_offline_time = time.time()
+            raise RuntimeError(f"AI Provider connection failed to {self.base_url}: {str(ce)}")
         except httpx.TimeoutException as te:
+            self._cached_online = False
+            self._last_offline_time = time.time()
             raise TimeoutError(f"AI Provider request timed out after {actual_timeout}s: {str(te)}")
         except Exception as e:
+            self._cached_online = False
+            self._last_offline_time = time.time()
             raise RuntimeError(f"AI Provider invocation failed: {str(e)}")
 
 

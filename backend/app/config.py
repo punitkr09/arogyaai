@@ -16,7 +16,7 @@ else:
 
 
 class Settings:
-    APP_NAME: str = os.getenv("APP_NAME", "Arogya AI — Pharmaceutical Inventory Intelligence")
+    APP_NAME: str = os.getenv("APP_NAME", "Arogya AI — Pharmaceutical Operations & Autonomous Intelligence")
     APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
     APP_ENV: str = os.getenv("APP_ENV", "development")
     PORT: int = int(os.getenv("PORT", "8000"))
@@ -30,7 +30,7 @@ class Settings:
     AI_BASE_URL: str = os.getenv("AI_BASE_URL", "http://localhost:11434/v1")
     AI_MODEL: str = os.getenv("AI_MODEL", "qwen2.5-coder:7b")
     AI_API_KEY: str = os.getenv("AI_API_KEY", "")
-    AI_TIMEOUT_SECONDS: int = int(os.getenv("AI_TIMEOUT_SECONDS", "15"))
+    AI_TIMEOUT_SECONDS: int = int(os.getenv("AI_TIMEOUT_SECONDS", "45"))
 
     # Legacy LLM config aliases for backwards compatibility
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
@@ -43,6 +43,8 @@ class Settings:
         "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
     )
     DEFAULT_EXECUTION_MODE: str = os.getenv("DEFAULT_EXECUTION_MODE", "operations")
+    # Configurable business reference date (dataset snapshot is 2026-11-16)
+    BUSINESS_REFERENCE_DATE: str = os.getenv("BUSINESS_REFERENCE_DATE", "2026-11-16")
 
     @property
     def cors_origins(self) -> List[str]:
@@ -50,3 +52,16 @@ class Settings:
 
 
 settings = Settings()
+
+
+def get_business_date() -> datetime:
+    """Returns the configured business reference date as timezone-aware UTC datetime."""
+    from datetime import datetime, timezone
+    try:
+        dt = datetime.fromisoformat(settings.BUSINESS_REFERENCE_DATE)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return datetime(2026, 11, 16, 0, 0, 0, tzinfo=timezone.utc)
+

@@ -65,6 +65,27 @@ export function ShortagePlanningView({ onInvestigateShortages }: ShortagePlannin
     setEditNotes(po.notes || '')
   }
 
+  const handleCreatePOForShortage = (p: typeof criticalProducts[0]) => {
+    const matched = products.find((prod) => prod.sku === p.sku)
+    setNewPOData({
+      product_id: matched ? matched.id : (products[0]?.id || 1),
+      quantity: 500,
+      unit_price: matched?.unit_price || 120,
+      notes: `Supplier: ${p.preferred_supplier}. Shortage replenishment: ${p.recommended_action}`,
+    })
+    setShowPOModal(true)
+  }
+
+  const handleQuickReceivePO = async (po: PurchaseOrder) => {
+    try {
+      const updated = await updatePurchaseOrderStatus(po.id, 'received', 'Received at depot via emergency intake.')
+      setFeedbackMsg(`✓ Purchase Order ${updated.po_number} marked RECEIVED! Units allocated to active depot inventory.`)
+      loadData()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to receive PO')
+    }
+  }
+
   const handleUpdateStatus = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingPO) return
@@ -249,6 +270,7 @@ export function ShortagePlanningView({ onInvestigateShortages }: ShortagePlannin
               <th>Runway</th>
               <th>Risk Level</th>
               <th>Recommended Action</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -267,10 +289,10 @@ export function ShortagePlanningView({ onInvestigateShortages }: ShortagePlannin
                 <td>
                   <span
                     style={{
-                      color: p.quarantined_stock > 0 ? '#b91c1c' : 'var(--text-muted)',
-                      fontWeight: p.quarantined_stock > 0 ? 700 : 400,
-                    }}
-                  >
+                    color: p.quarantined_stock > 0 ? '#b91c1c' : 'var(--text-muted)',
+                    fontWeight: p.quarantined_stock > 0 ? 700 : 400,
+                  }}
+                >
                     {p.quarantined_stock > 0 ? `-${p.quarantined_stock}` : '0'}
                   </span>
                 </td>
@@ -306,9 +328,19 @@ export function ShortagePlanningView({ onInvestigateShortages }: ShortagePlannin
                     {p.shortage_risk.toUpperCase()}
                   </span>
                 </td>
-                <td style={{ fontSize: '0.78rem', maxWidth: 300 }}>
+                <td style={{ fontSize: '0.78rem', maxWidth: 280 }}>
                   <div style={{ color: 'var(--text-main)', marginBottom: '0.2rem' }}>{p.recommended_action}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Supplier: {p.preferred_supplier}</div>
+                </td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <button
+                    className="btn-primary"
+                    onClick={() => handleCreatePOForShortage(p)}
+                    style={{ padding: '0.25rem 0.65rem', fontSize: '0.74rem' }}
+                    title={`Create emergency replenishment PO for ${p.sku}`}
+                  >
+                    + Create PO &rarr;
+                  </button>
                 </td>
               </tr>
             ))}
@@ -382,13 +414,25 @@ export function ShortagePlanningView({ onInvestigateShortages }: ShortagePlannin
                     </span>
                   </td>
                   <td>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => handleOpenEditStatus(po)}
-                      style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
-                    >
-                      ✎ Update Status
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'nowrap' }}>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleOpenEditStatus(po)}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                      >
+                        ✎ Update
+                      </button>
+                      {po.status !== 'received' && (
+                        <button
+                          className="btn-secondary"
+                          onClick={() => handleQuickReceivePO(po)}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem', color: '#16a34a' }}
+                          title="Mark received and restock warehouse"
+                        >
+                          📦 Receive
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

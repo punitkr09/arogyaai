@@ -54,9 +54,10 @@ class BatchInventory(Base):
     __tablename__ = "batch_inventories"
 
     id = Column(Integer, primary_key=True, index=True)
-    batch_number = Column(String(64), unique=True, index=True, nullable=False)
+    batch_number = Column(String(64), index=True, nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
+    storage_location = Column(String(64), default="AMB")
     available_quantity = Column(Integer, nullable=False, default=0)
     initial_quantity = Column(Integer, nullable=False, default=0)
     manufacturing_date = Column(DateTime, nullable=False)
@@ -91,6 +92,8 @@ class Customer(Base):
     code = Column(String(32), unique=True, index=True, nullable=False)
     name = Column(String(255), nullable=False)
     customer_type = Column(String(32), nullable=False)  # chemist, hospital
+    location = Column(String(128), nullable=True)
+    credit_terms = Column(String(64), nullable=True)
     contact_email = Column(String(128), nullable=True)
     phone = Column(String(32), nullable=True)
     address = Column(String(255), nullable=True)
@@ -107,10 +110,12 @@ class Dispatch(Base):
     id = Column(Integer, primary_key=True, index=True)
     dispatch_number = Column(String(64), unique=True, index=True, nullable=False)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
-    batch_id = Column(Integer, ForeignKey("batch_inventories.id"), nullable=False)
+    batch_id = Column(Integer, ForeignKey("batch_inventories.id"), nullable=True)
+    batch_number = Column(String(64), index=True, nullable=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    sku = Column(String(64), index=True, nullable=True)
     quantity = Column(Integer, nullable=False)
-    dispatch_date = Column(DateTime, nullable=False)
+    dispatch_date = Column(DateTime, nullable=False, index=True)
     status = Column(String(32), default="delivered")  # delivered, in_transit
     tracking_ref = Column(String(64), nullable=True)
 
@@ -123,13 +128,16 @@ class Supplier(Base):
     __tablename__ = "suppliers"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False, index=True)
+    sku = Column(String(64), index=True, nullable=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
     contact_email = Column(String(128), nullable=True)
     phone = Column(String(32), nullable=True)
     lead_time_days = Column(Integer, default=14)
     min_order_quantity = Column(Integer, default=500)
     return_window_days = Column(Integer, default=60)  # Days prior to expiry allowed for return
 
+    product = relationship("Product", foreign_keys=[product_id])
     purchase_orders = relationship("PurchaseOrder", back_populates="supplier")
 
 
@@ -138,17 +146,45 @@ class PurchaseOrder(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     po_number = Column(String(64), unique=True, index=True, nullable=False)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    manufacturer = Column(String(128), nullable=True)
+    sku = Column(String(64), index=True, nullable=True)
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Float, default=0.0)
-    status = Column(String(32), default="draft")  # draft, submitted, approved, fulfilled
+    total_amount = Column(Float, default=0.0)
+    status = Column(String(64), default="draft")  # draft, submitted, approved, fulfilled, Confirmed, Received, Open, Delayed
     urgency = Column(String(32), default="routine")  # routine, urgent, emergency
     notes = Column(Text, nullable=True)
+    order_date = Column(DateTime, default=utcnow)
+    expected_delivery_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utcnow)
 
     supplier = relationship("Supplier", back_populates="purchase_orders")
     product = relationship("Product", back_populates="purchase_orders")
+
+
+class Recall(Base):
+    __tablename__ = "recalls"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recall_date = Column(DateTime, nullable=False, index=True)
+    sku = Column(String(64), index=True, nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    batches = Column(String(255), nullable=False)  # affected batch(es), e.g. "B2231"
+    reason = Column(Text, nullable=False)
+    recall_class = Column(String(32), nullable=False)  # Class I, Class II, Class III
+    status = Column(String(32), default="active")  # active, completed, closed
+
+    product = relationship("Product", foreign_keys=[product_id])
+
+    @property
+    def batch_number(self) -> str:
+        return self.batches
+
+    @property
+    def classification(self) -> str:
+        return self.recall_class
 
 
 class TemperatureLog(Base):
@@ -156,14 +192,22 @@ class TemperatureLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
+    warehouse_name = Column(String(128), nullable=True)
     cold_room_unit = Column(String(64), nullable=False)
-    recorded_at = Column(DateTime, default=utcnow)
+    recorded_at = Column(DateTime, default=utcnow, index=True)
     temperature_celsius = Column(Float, nullable=False)
     is_excursion = Column(Boolean, default=False)
     duration_minutes = Column(Integer, default=0)
     alert_sent = Column(Boolean, default=False)
+    permitted_range = Column(String(32), default="2°C - 8°C")
+    thermal_severity = Column(String(32), default="Normal")
+    notes = Column(Text, nullable=True)
 
     warehouse = relationship("Warehouse", back_populates="temperature_logs")
+
+    @property
+    def recorded_temperature_celsius(self):
+        return self.temperature_celsius
 
 
 class Incident(Base):

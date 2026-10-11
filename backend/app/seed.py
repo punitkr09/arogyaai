@@ -46,7 +46,6 @@ def seed_database(db: Session = None):
         db = SessionLocal()
         close_session = True
 
-
     try:
         # Check if already seeded with Batch B2231
         existing_batch = db.query(BatchInventory).filter_by(batch_number="B2231").first()
@@ -531,9 +530,25 @@ def seed_database(db: Session = None):
             db.close()
 
 
-def reset_database():
+def reset_database(include_datasets: bool = False):
     """Drops all tables and re-seeds cleanly."""
     engine.dispose()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     seed_database()
+    if include_datasets:
+        try:
+            import sys
+            from pathlib import Path
+            backend_dir = Path(__file__).resolve().parent.parent
+            if str(backend_dir / "scripts") not in sys.path:
+                sys.path.insert(0, str(backend_dir / "scripts"))
+            from import_datasets import import_all_datasets
+            db = SessionLocal()
+            try:
+                import_all_datasets(db)
+            finally:
+                db.close()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Dataset auto-sync on reset: {e}")

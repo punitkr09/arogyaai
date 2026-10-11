@@ -290,9 +290,11 @@ export function BatchExplorer({ onInvestigateBatch }: BatchExplorerProps) {
               onChange={(e) => setWarehouseFilter(e.target.value)}
             >
               <option value="">All Warehouses</option>
-              <option value="WH-CENTRAL">Central Depot (Bhiwandi)</option>
-              <option value="WH-NORTH">North Cold Facility (NCR)</option>
-              <option value="WH-WEST">West Coast Express (Pune)</option>
+              {warehouses.map((wh) => (
+                <option key={wh.id} value={wh.code}>
+                  {wh.name} ({wh.code})
+                </option>
+              ))}
             </select>
           </div>
         </div>

@@ -30,6 +30,16 @@ class DashboardSummaryResponse(BaseModel):
     pending_approvals: int
     attention_items: List[AttentionItem]
     timestamp: str = Field(default_factory=utcnow_str)
+    total_customers: int = 0
+    total_inventory_units: int = 0
+    total_dispatches: int = 0
+    total_dispatched_units: int = 0
+    critical_drugs_count: int = 0
+    low_stock_products_count: int = 0
+    delayed_purchase_orders: int = 0
+    overdue_purchase_orders: int = 0
+    business_reference_date: str = "2026-11-16"
+    warehouse_distribution: Dict[str, int] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +75,7 @@ class BatchSummarySchema(BaseModel):
     expiry_date: str
     status: str
     storage_condition: str
+    storage_location: Optional[str] = "AMB"
     days_to_expiry: int
 
     model_config = ConfigDict(from_attributes=True)
@@ -153,6 +164,13 @@ class AgentTaskRequest(BaseModel):
     prompt: str = Field(..., min_length=3, description="Task prompt or problem statement")
     mode: str = Field(default="demo", description="'demo' or 'live'")
     incident_id: Optional[int] = None
+
+
+class AgentChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="Natural language prompt or query")
+    session_id: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+    mode: Optional[str] = "operations"
 
 
 class AgentEventSchema(BaseModel):
@@ -268,6 +286,8 @@ class CustomerSchema(BaseModel):
     code: str
     name: str
     customer_type: str
+    location: Optional[str] = None
+    credit_terms: Optional[str] = None
     priority_tier: int
     contact_email: Optional[str] = None
     phone: Optional[str] = None
@@ -276,10 +296,59 @@ class CustomerSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SupplierSchema(BaseModel):
+    id: int
+    name: str
+    sku: Optional[str] = None
+    lead_time_days: int
+    min_order_quantity: int
+    return_window_days: int
+    contact_email: Optional[str] = None
+    phone: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RecallSchema(BaseModel):
+    id: int
+    recall_date: str
+    sku: str
+    product_name: Optional[str] = None
+    batches: str
+    reason: str
+    recall_class: str
+    status: str
+    affected_batches_list: List[str] = []
+    remaining_stock_units: int = 0
+    dispatched_units: int = 0
+    affected_recipients_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CreateSupplierRequest(BaseModel):
+    name: str
+    sku: Optional[str] = None
+    lead_time_days: int = 7
+    min_order_quantity: int = 100
+    return_window_days: int = 30
+    contact_email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class CreateRecallRequest(BaseModel):
+    sku: str
+    batches: str
+    reason: str
+    recall_class: str = "Class II"
+
+
 class CreateCustomerRequest(BaseModel):
     code: str
     name: str
     customer_type: str  # hospital, chemist
+    location: Optional[str] = None
+    credit_terms: Optional[str] = None
     priority_tier: int = 2  # 1 for hospital/critical, 2 for retail
     contact_email: Optional[str] = None
     phone: Optional[str] = None
@@ -289,6 +358,8 @@ class CreateCustomerRequest(BaseModel):
 class UpdateCustomerRequest(BaseModel):
     name: Optional[str] = None
     customer_type: Optional[str] = None
+    location: Optional[str] = None
+    credit_terms: Optional[str] = None
     priority_tier: Optional[int] = None
     contact_email: Optional[str] = None
     phone: Optional[str] = None
@@ -341,13 +412,18 @@ class PurchaseOrderSchema(BaseModel):
     product_name: str
     product_sku: str
     supplier_name: str
+    manufacturer: Optional[str] = None
+    sku: Optional[str] = None
     quantity: int
     unit_price: float
     total_amount: float
     status: str
     order_date: str
     expected_delivery_date: Optional[str] = None
+    is_overdue: bool = False
     notes: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CreatePurchaseOrderRequest(BaseModel):

@@ -1,14 +1,25 @@
 import { useState } from 'react'
 import type { HealthResponse } from '../types/workflow'
 import { seedAdminData } from '../services/api'
+import { AgentIcon, SettingsIcon, SunIcon, MoonIcon } from './Icons'
 
 interface SettingsViewProps {
   health: HealthResponse | null
   healthLoading: boolean
+  theme?: 'dark' | 'light'
+  onSetTheme?: (theme: 'dark' | 'light') => void
   onDataReinitialized: () => void
+  onOpenOfflineModelModal?: () => void
 }
 
-export function SettingsView({ health, healthLoading, onDataReinitialized }: SettingsViewProps) {
+export function SettingsView({
+  health,
+  healthLoading,
+  theme = 'dark',
+  onSetTheme,
+  onDataReinitialized,
+  onOpenOfflineModelModal,
+}: SettingsViewProps) {
   const [showSeedModal, setShowSeedModal] = useState<boolean>(false)
   const [seeding, setSeeding] = useState<boolean>(false)
   const [seedResult, setSeedResult] = useState<string | null>(null)
@@ -108,6 +119,25 @@ export function SettingsView({ health, healthLoading, onDataReinitialized }: Set
               <span style={{ color: 'var(--text-muted)' }}>Zero-Token Requirement:</span>
               <span style={{ color: '#166534', fontWeight: 600 }}>✓ Verified (100% Offline Capable)</span>
             </div>
+
+              {onOpenOfflineModelModal && (
+                <button
+                  className="btn-secondary"
+                  onClick={onOpenOfflineModelModal}
+                  style={{
+                    marginTop: '0.5rem',
+                    width: '100%',
+                    fontSize: '0.8rem',
+                    padding: '0.45rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <AgentIcon size={16} /> Check Offline Model & Ollama Setup...
+                </button>
+              )}
           </div>
         </div>
 
@@ -154,6 +184,55 @@ export function SettingsView({ health, healthLoading, onDataReinitialized }: Set
         </div>
       </div>
 
+      {/* Interface Theme & Appearance Preference */}
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+              Interface Theme & Appearance Preference
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Choose your preferred visual presentation: High-contrast Dark Mode (deep obsidian palette for mission-critical telemetry) or Clean Light Mode (clinical paper canvas).
+            </p>
+          </div>
+
+          <div style={{ display: 'inline-flex', padding: 4, background: 'var(--bg-card-subtle)', borderRadius: 8, border: '1px solid var(--border-subtle)', gap: 4 }}>
+            <button
+              onClick={() => onSetTheme?.('dark')}
+              className={theme === 'dark' ? 'btn-primary' : 'btn-secondary'}
+              style={{
+                fontSize: '0.78rem',
+                padding: '0.35rem 0.85rem',
+                borderRadius: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+              }}
+              title="Set Dark Mode"
+            >
+              <MoonIcon size={14} /> Dark Mode
+            </button>
+            <button
+              onClick={() => onSetTheme?.('light')}
+              className={theme === 'light' ? 'btn-primary' : 'btn-secondary'}
+              style={{
+                fontSize: '0.78rem',
+                padding: '0.35rem 0.85rem',
+                borderRadius: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+              }}
+              title="Set Light Mode"
+            >
+              <SunIcon size={14} /> Light Mode
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Administrative Data Management */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
@@ -169,9 +248,9 @@ export function SettingsView({ health, healthLoading, onDataReinitialized }: Set
           <button
             className="btn-secondary"
             onClick={() => setShowSeedModal(true)}
-            style={{ padding: '0.55rem 1.1rem', fontWeight: 600 }}
+            style={{ padding: '0.55rem 1.1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
           >
-            ⚙️ Seed Sample Operational Data...
+            <SettingsIcon size={14} /> Seed Sample Operational Data...
           </button>
         </div>
       </div>
