@@ -8,4 +8,3 @@ node_modules/
 dist/
 *.db
 .pytest_cache/
-.vercel
