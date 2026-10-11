@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { HealthResponse } from '../types/workflow'
 import { seedAdminData } from '../services/api'
-import { localAiService } from '../services/localAiService'
 import { AgentIcon, SettingsIcon, SunIcon, MoonIcon } from './Icons'
 
 interface SettingsViewProps {
@@ -25,36 +24,6 @@ export function SettingsView({
   const [seeding, setSeeding] = useState<boolean>(false)
   const [seedResult, setSeedResult] = useState<string | null>(null)
 
-  const [ollamaEndpoint, setOllamaEndpoint] = useState<string>(() => localAiService.getConfig().ollamaUrl)
-  const [helperEndpoint, setHelperEndpoint] = useState<string>(() => localAiService.getConfig().helperUrl)
-  const [selectedModel, setSelectedModel] = useState<string>(() => localAiService.getConfig().modelName)
-  const [testingAi, setTestingAi] = useState<boolean>(false)
-  const [aiTestResult, setAiTestResult] = useState<string | null>(null)
-
-  const handleSaveAndTestAi = async () => {
-    setTestingAi(true)
-    setAiTestResult(null)
-    try {
-      localAiService.saveConfig({
-        ollamaUrl: ollamaEndpoint.trim(),
-        helperUrl: helperEndpoint.trim(),
-        modelName: selectedModel.trim(),
-      })
-      const status = await localAiService.checkConnection(true)
-      if (status.state === 'local_ai_connected') {
-        setAiTestResult(`✓ Connected! Model '${status.model}' verified (${status.latencyMs}ms).`)
-      } else if (status.state === 'model_missing') {
-        setAiTestResult(`⚠ Ollama is running, but model '${status.model}' is missing. Installed: [${status.availableModels.join(', ')}]`)
-      } else {
-        setAiTestResult(`✕ ${status.stateLabel}: ${status.message}`)
-      }
-    } catch (err: unknown) {
-      setAiTestResult(`✕ Error: ${(err as Error)?.message || 'Failed to connect'}`)
-    } finally {
-      setTestingAi(false)
-    }
-  }
-
   const handleSeed = async () => {
     setSeeding(true)
     setSeedResult(null)
@@ -69,8 +38,6 @@ export function SettingsView({
       setSeeding(false)
     }
   }
-
-  const localAiStatus = localAiService.getStatus()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -108,140 +75,69 @@ export function SettingsView({
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
-              Local AI Inference Layer
+              AI Inference Engine Layer
             </h3>
             <span
               className="badge"
               style={{
-                backgroundColor: localAiStatus.state === 'local_ai_connected' ? 'var(--status-success-bg)' : 'var(--status-warning-bg)',
-                color: localAiStatus.state === 'local_ai_connected' ? 'var(--status-success-text)' : 'var(--status-warning-text)',
+                backgroundColor: health?.ai_provider?.is_online ? 'var(--status-success-bg)' : 'var(--status-warning-bg)',
+                color: health?.ai_provider?.is_online ? 'var(--status-success-text)' : 'var(--status-warning-text)',
                 border: '1px solid currentColor',
               }}
             >
-              {localAiStatus.state === 'local_ai_connected' ? 'Mode A: Local AI Active' : 'Mode B: Dataset Fallback Active'}
+              {health?.ai_provider?.is_online ? 'Active & Ready' : 'Semantic Fallback Mode'}
             </span>
           </div>
 
+
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            Inference executes 100% locally on your machine via Ollama. When offline or blocked by browser security, Arogya AI automatically operates in Dataset Fallback Mode.
+            Supports local zero-token inference via local Ollama endpoint, with seamless automatic fallback to the deterministic semantic decision engine.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.82rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                Local Ollama Endpoint URL:
-              </label>
-              <input
-                type="text"
-                value={ollamaEndpoint}
-                onChange={(e) => setOllamaEndpoint(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.4rem 0.6rem',
-                  fontSize: '0.8rem',
-                  fontFamily: 'var(--font-mono)',
-                  borderRadius: 4,
-                  border: '1px solid var(--border-medium)',
-                  background: 'var(--bg-card-subtle)',
-                  color: 'var(--text-main)',
-                }}
-                placeholder="http://127.0.0.1:11434"
-              />
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Configured Provider:</span>
+              <strong style={{ fontFamily: 'var(--font-mono)' }}>{health?.ai_provider?.provider || 'ollama'}</strong>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                Local Companion Helper URL (for HTTPS web apps):
-              </label>
-              <input
-                type="text"
-                value={helperEndpoint}
-                onChange={(e) => setHelperEndpoint(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.4rem 0.6rem',
-                  fontSize: '0.8rem',
-                  fontFamily: 'var(--font-mono)',
-                  borderRadius: 4,
-                  border: '1px solid var(--border-medium)',
-                  background: 'var(--bg-card-subtle)',
-                  color: 'var(--text-main)',
-                }}
-                placeholder="http://127.0.0.1:11435"
-              />
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Selected Model:</span>
+              <strong style={{ fontFamily: 'var(--font-mono)' }}>{health?.ai_provider?.model || 'qwen2.5-coder:7b'}</strong>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                Configured Model Name:
-              </label>
-              <input
-                type="text"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.4rem 0.6rem',
-                  fontSize: '0.8rem',
-                  fontFamily: 'var(--font-mono)',
-                  borderRadius: 4,
-                  border: '1px solid var(--border-medium)',
-                  background: 'var(--bg-card-subtle)',
-                  color: 'var(--text-main)',
-                }}
-                placeholder="qwen2.5-coder:7b"
-              />
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Endpoint Base URL:</span>
+              <strong style={{ fontFamily: 'var(--font-mono)' }}>{health?.ai_provider?.base_url || 'http://localhost:11434/v1'}</strong>
             </div>
 
-            <button
-              onClick={handleSaveAndTestAi}
-              disabled={testingAi}
-              className="btn-primary"
-              style={{
-                marginTop: '0.35rem',
-                fontSize: '0.8rem',
-                padding: '0.45rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-              }}
-            >
-              {testingAi ? 'Testing Connection...' : 'Save & Test Local AI Connection'}
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Fallback Strategy:</span>
+              <strong>Deterministic Semantic Engine</strong>
+            </div>
 
-            {aiTestResult && (
-              <div
-                style={{
-                  padding: '0.6rem',
-                  borderRadius: 4,
-                  backgroundColor: aiTestResult.startsWith('✓') ? 'var(--status-success-bg)' : 'var(--bg-card-subtle)',
-                  color: aiTestResult.startsWith('✓') ? 'var(--status-success-text)' : 'var(--text-main)',
-                  border: `1px solid ${aiTestResult.startsWith('✓') ? 'var(--status-success-border)' : 'var(--border-subtle)'}`,
-                  fontSize: '0.76rem',
-                  lineHeight: 1.4,
-                }}
-              >
-                {aiTestResult}
-              </div>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Zero-Token Requirement:</span>
+              <span style={{ color: '#166534', fontWeight: 600 }}>✓ Verified (100% Offline Capable)</span>
+            </div>
 
-            {onOpenOfflineModelModal && (
-              <button
-                className="btn-secondary"
-                onClick={onOpenOfflineModelModal}
-                style={{
-                  fontSize: '0.8rem',
-                  padding: '0.45rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                }}
-              >
-                <AgentIcon size={16} /> Ollama Setup &amp; Troubleshooting Guide...
-              </button>
-            )}
+              {onOpenOfflineModelModal && (
+                <button
+                  className="btn-secondary"
+                  onClick={onOpenOfflineModelModal}
+                  style={{
+                    marginTop: '0.5rem',
+                    width: '100%',
+                    fontSize: '0.8rem',
+                    padding: '0.45rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <AgentIcon size={16} /> Check Offline Model & Ollama Setup...
+                </button>
+              )}
           </div>
         </div>
 

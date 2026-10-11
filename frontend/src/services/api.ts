@@ -77,23 +77,11 @@ export async function fetchAgentTemplates(): Promise<TaskTemplate[]> {
   return handleResponse<TaskTemplate[]>(res)
 }
 
-export async function runAgentTask(
-  prompt: string,
-  mode: string = 'operations',
-  clientSynthesis?: string,
-  clientModel?: string,
-  executionMode?: string
-): Promise<AgentRunDetail> {
+export async function runAgentTask(prompt: string, mode: string = 'operations'): Promise<AgentRunDetail> {
   const res = await fetch(`${API_BASE}/agent/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      mode,
-      client_synthesis: clientSynthesis,
-      client_model: clientModel,
-      execution_mode: executionMode,
-    }),
+    body: JSON.stringify({ prompt, mode }),
   })
   return handleResponse<AgentRunDetail>(res)
 }

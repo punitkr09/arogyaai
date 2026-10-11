@@ -12,9 +12,6 @@ interface AgentWorkspaceViewProps {
   activeRun: AgentRunDetail | null
   error: string | null
   onNavigateToApprovals: () => void
-  localAiStatus?: import('../types/arogya').LocalAIStatus | null
-  onRetryLocalAi?: () => void
-  onOpenOfflineModelModal?: () => void
 }
 
 type DataCategory = 'batch' | 'purchase_order' | 'temperature_log' | 'dispatch' | 'customer' | 'supplier' | 'recall'
@@ -28,9 +25,6 @@ export function AgentWorkspaceView({
   activeRun,
   error,
   onNavigateToApprovals,
-  localAiStatus,
-  onRetryLocalAi,
-  onOpenOfflineModelModal,
 }: AgentWorkspaceViewProps) {
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
 
@@ -216,73 +210,6 @@ export function AgentWorkspaceView({
             }}
           >
             {dataFeedback}
-          </div>
-        )}
-
-        {/* Operational Intelligence Mode Banner */}
-        {localAiStatus && (
-          <div
-            style={{
-              padding: '0.65rem 0.9rem',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '0.6rem',
-              fontSize: '0.8rem',
-              backgroundColor: localAiStatus.state === 'local_ai_connected'
-                ? 'var(--status-success-bg, rgba(16, 185, 129, 0.12))'
-                : 'var(--bg-card-subtle)',
-              border: `1px solid ${
-                localAiStatus.state === 'local_ai_connected'
-                  ? 'var(--status-success-border, rgba(16, 185, 129, 0.3))'
-                  : 'var(--border-subtle)'
-              }`,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  backgroundColor: localAiStatus.state === 'local_ai_connected' ? '#10b981' : '#f59e0b',
-                  display: 'inline-block',
-                }}
-              />
-              <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                {localAiStatus.state === 'local_ai_connected'
-                  ? `Mode: Local AI Active (${localAiStatus.model} via Ollama)`
-                  : 'Mode: Dataset Fallback Active'}
-              </span>
-              <span style={{ color: 'var(--text-muted)' }}>
-                {localAiStatus.state === 'local_ai_connected'
-                  ? '— AI planning and analysis running locally on your hardware.'
-                  : '— Your local AI model is offline. Arogya AI is using verified pharmaceutical datasets and operational tools.'}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {localAiStatus.state !== 'local_ai_connected' && onRetryLocalAi && (
-                <button
-                  className="btn-secondary"
-                  onClick={onRetryLocalAi}
-                  style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                >
-                  <RefreshIcon size={12} /> Retry Local AI Connection
-                </button>
-              )}
-              {localAiStatus.state !== 'local_ai_connected' && onOpenOfflineModelModal && (
-                <button
-                  className="btn-secondary"
-                  onClick={onOpenOfflineModelModal}
-                  style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem' }}
-                >
-                  Setup Guide...
-                </button>
-              )}
-            </div>
           </div>
         )}
 
@@ -664,56 +591,12 @@ export function AgentWorkspaceView({
             {/* Final Report & Action Gate Banner */}
             {activeRun.final_report && (
               <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', margin: 0 }}>
-                    Incident Report &amp; Action Proposals
-                  </h3>
-                  {activeRun.final_report.incident_summary.includes('[AI-Generated Reasoning') ? (
-                    <span
-                      style={{
-                        padding: '0.2rem 0.6rem',
-                        borderRadius: 9999,
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                        color: '#818cf8',
-                        border: '1px solid rgba(99, 102, 241, 0.35)',
-                      }}
-                    >
-                      AI-Generated (Local Ollama)
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        padding: '0.2rem 0.6rem',
-                        borderRadius: 9999,
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        backgroundColor: 'var(--bg-card-subtle)',
-                        color: 'var(--text-muted)',
-                        border: '1px solid var(--border-medium)',
-                      }}
-                    >
-                      Dataset-Backed Deterministic Output
-                    </span>
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    fontSize: '0.82rem',
-                    color: 'var(--text-main)',
-                    lineHeight: 1.5,
-                    marginBottom: '1rem',
-                    whiteSpace: 'pre-line',
-                    padding: '0.75rem',
-                    backgroundColor: 'var(--bg-card-subtle)',
-                    borderRadius: 6,
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                  Incident Report & Action Proposals
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: 1.45, marginBottom: '1rem' }}>
                   {activeRun.final_report.incident_summary}
-                </div>
+                </p>
 
                 <div
                   style={{

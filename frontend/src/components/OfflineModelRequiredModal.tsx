@@ -1,23 +1,29 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { localAiService } from '../services/localAiService'
-import type { LocalAIStatus, LocalAIState } from '../types/arogya'
-import { AgentIcon, CloseIcon, RefreshIcon } from './Icons'
+import { fetchAIStatus, type AIStatusResponse } from '../services/api'
+import { AgentIcon, CheckIcon, CloseIcon, RefreshIcon } from './Icons'
 
 interface OfflineModelRequiredModalProps {
   isOpen: boolean
   onClose: () => void
-  onStatusChange?: (status: LocalAIStatus | null) => void
+  onStatusChange?: (status: AIStatusResponse | null) => void
 }
+
+type DynamicStatus =
+  | 'Checking connection'
+  | 'Connected — model available'
+  | 'Offline — Ollama unavailable'
+  | 'Model missing or unavailable'
+  | 'Backend unavailable'
 
 export function OfflineModelRequiredModal({
   isOpen,
   onClose,
   onStatusChange,
 }: OfflineModelRequiredModalProps) {
-  const [status, setStatus] = useState<LocalAIStatus>(() => localAiService.getStatus())
+  const [status, setStatus] = useState<AIStatusResponse | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
-  const [showInstructions, setShowInstructions] = useState<boolean>(true)
-  const [instructionTab, setInstructionTab] = useState<'ollama' | 'companion' | 'security'>('ollama')
+  const [displayStatus, setDisplayStatus] = useState<DynamicStatus>('Checking connection')
+  const [showInstructions, setShowInstructions] = useState<boolean>(false)
   const [selectedOS, setSelectedOS] = useState<'linux' | 'macos' | 'windows'>('linux')
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null)
 
@@ -28,10 +34,22 @@ export function OfflineModelRequiredModal({
 
   const checkConnection = useCallback(async () => {
     setLoading(true)
+    setDisplayStatus('Checking connection')
     try {
-      const res = await localAiService.checkConnection(true)
+      const res = await fetchAIStatus()
       setStatus(res)
+      if (res.is_online && res.model_available) {
+        setDisplayStatus('Connected — model available')
+      } else if (res.is_online && !res.model_available) {
+        setDisplayStatus('Model missing or unavailable')
+      } else {
+        setDisplayStatus('Offline — Ollama unavailable')
+      }
       onStatusChangeRef.current?.(res)
+    } catch {
+      setStatus(null)
+      setDisplayStatus('Backend unavailable')
+      onStatusChangeRef.current?.(null)
     } finally {
       setLoading(false)
     }
@@ -58,7 +76,7 @@ export function OfflineModelRequiredModal({
   if (!isOpen) return null
 
   const configuredModel = status?.model || 'qwen2.5-coder:7b'
-  const isConnected = status.state === 'local_ai_connected'
+  const isOnlineAndReady = displayStatus === 'Connected — model available'
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard?.writeText(text)
@@ -66,50 +84,42 @@ export function OfflineModelRequiredModal({
     setTimeout(() => setCopiedCmd(null), 2000)
   }
 
-  const getStatusBadgeStyle = (state: LocalAIState) => {
-    switch (state) {
-      case 'local_ai_connected':
+  const getStatusBadgeStyle = () => {
+    switch (displayStatus) {
+      case 'Connected — model available':
         return {
           bg: 'var(--status-success-bg, rgba(16, 185, 129, 0.16))',
           text: 'var(--status-success-text, #34d399)',
-          border: 'var(--status-success-border, rgba(16, 185, 129, 0.35))',
+          border: 'var(--status-success-border, rgba(16, 185, 129, 0.3))',
           dot: '#10b981',
         }
-      case 'checking_local_ai':
+      case 'Checking connection':
         return {
           bg: '#1e293b',
           text: '#94a3b8',
           border: '#334155',
           dot: '#94a3b8',
         }
-      case 'model_missing':
+      case 'Model missing or unavailable':
         return {
           bg: 'var(--status-warning-bg, rgba(245, 158, 11, 0.16))',
           text: 'var(--status-warning-text, #fbbf24)',
-          border: 'var(--status-warning-border, rgba(245, 158, 11, 0.35))',
+          border: 'var(--status-warning-border, rgba(245, 158, 11, 0.3))',
           dot: '#f59e0b',
         }
-      case 'local_connection_blocked_by_browser_security':
-        return {
-          bg: 'rgba(217, 119, 6, 0.16)',
-          text: '#f59e0b',
-          border: 'rgba(217, 119, 6, 0.35)',
-          dot: '#d97706',
-        }
-      case 'ollama_not_installed_or_not_running':
-      case 'local_ai_request_failed':
-      case 'dataset_fallback_active':
+      case 'Offline — Ollama unavailable':
+      case 'Backend unavailable':
       default:
         return {
           bg: 'var(--status-critical-bg, rgba(239, 68, 68, 0.16))',
           text: 'var(--status-critical-text, #f87171)',
-          border: 'var(--status-critical-border, rgba(239, 68, 68, 0.35))',
+          border: 'var(--status-critical-border, rgba(239, 68, 68, 0.3))',
           dot: '#ef4444',
         }
     }
   }
 
-  const badgeStyle = getStatusBadgeStyle(status.state)
+  const badgeStyle = getStatusBadgeStyle()
 
   return (
     <div
@@ -137,9 +147,9 @@ export function OfflineModelRequiredModal({
           backgroundColor: 'var(--bg-surface)',
           borderRadius: '12px',
           boxShadow: 'var(--shadow-lg)',
-          maxWidth: '680px',
+          maxWidth: '620px',
           width: '100%',
-          maxHeight: '92vh',
+          maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
           border: '1px solid var(--border-medium)',
@@ -177,13 +187,13 @@ export function OfflineModelRequiredModal({
               <h2
                 id="offline-model-dialog-title"
                 style={{
-                  fontSize: '1.15rem',
+                  fontSize: '1.2rem',
                   fontWeight: 700,
                   color: 'var(--text-main)',
                   margin: 0,
                 }}
               >
-                Local Ollama Intelligence &amp; Fallback Desk
+                Offline Model Required
               </h2>
               <p
                 style={{
@@ -192,7 +202,7 @@ export function OfflineModelRequiredModal({
                   margin: '0.15rem 0 0 0',
                 }}
               >
-                Private Hardware Inference &bull; Zero Cloud Dependency &bull; Automatic Dataset Fallback
+                Local Inference Engine &bull; Zero Cloud Dependency
               </p>
             </div>
           </div>
@@ -227,16 +237,18 @@ export function OfflineModelRequiredModal({
             display: 'flex',
             flexDirection: 'column',
             gap: '1.25rem',
-            fontSize: '0.85rem',
+            fontSize: '0.875rem',
             lineHeight: 1.5,
           }}
         >
           {/* Main Description */}
           <p style={{ color: 'var(--text-main)', margin: 0 }}>
-            Arogya AI is architected to be publicly accessible without requiring cloud AI tokens. It checks whether <strong>Ollama</strong> is running locally on your workstation. When connected, the AI Agent Desk uses your local model (<strong>{configuredModel}</strong>). When disconnected, it automatically switches to <strong>Dataset Fallback Mode</strong> using verified database records.
+            Arogya AI uses a local AI model through Ollama to power its operations assistant. Start
+            Ollama and ensure the configured model is installed and running to enable AI-powered
+            analysis, natural-language questions, recommendations, and operational assistance.
           </p>
 
-          {/* Dynamic State Machine Display Box */}
+          {/* Dynamic Status Box */}
           <div
             style={{
               padding: '1rem',
@@ -264,75 +276,34 @@ export function OfflineModelRequiredModal({
                   style={{
                     fontWeight: 700,
                     color: badgeStyle.text,
-                    fontSize: '0.92rem',
+                    fontSize: '0.9rem',
                   }}
                 >
-                  {status.stateLabel}
+                  {displayStatus}
                 </span>
               </div>
 
-              {status.latencyMs !== undefined && (
+              {status?.latency_ms !== undefined && (
                 <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: badgeStyle.text }}>
-                  {status.latencyMs}ms latency
+                  {status.latency_ms}ms latency
                 </span>
               )}
             </div>
 
-            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: badgeStyle.text, opacity: 0.95 }}>
-              {status.message}
-            </p>
-
-            <div style={{ fontSize: '0.76rem', color: badgeStyle.text, opacity: 0.9, marginTop: '0.2rem' }}>
-              Endpoint: <strong style={{ fontFamily: 'var(--font-mono)' }}>{status.endpointUrl}</strong> &bull;
-              Configured Model: <strong style={{ fontFamily: 'var(--font-mono)' }}>{configuredModel}</strong>
+            <div style={{ fontSize: '0.78rem', color: badgeStyle.text, opacity: 0.9 }}>
+              Configured Model:{' '}
+              <strong style={{ fontFamily: 'var(--font-mono)' }}>{configuredModel}</strong> &bull;
+              Provider: <strong style={{ fontFamily: 'var(--font-mono)' }}>{status?.provider || 'ollama'}</strong>
             </div>
 
-            {status.availableModels && status.availableModels.length > 0 && (
-              <div style={{ fontSize: '0.75rem', color: badgeStyle.text, marginTop: '0.15rem' }}>
-                Installed Models Found: <strong>{status.availableModels.join(', ')}</strong>
+            {status?.available_models && status.available_models.length > 0 && (
+              <div style={{ fontSize: '0.75rem', color: badgeStyle.text, marginTop: '0.25rem' }}>
+                Locally Installed Models: {status.available_models.join(', ')}
               </div>
             )}
           </div>
 
-          {/* Mode A vs Mode B Notice */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '0.75rem',
-              fontSize: '0.78rem',
-            }}
-          >
-            <div
-              style={{
-                padding: '0.75rem',
-                borderRadius: 6,
-                backgroundColor: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-card-subtle)',
-                border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-subtle)'}`,
-              }}
-            >
-              <strong style={{ color: isConnected ? '#34d399' : 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>
-                {isConnected ? '✓ Active: Mode A (Local AI)' : 'Mode A: Local AI Available'}
-              </strong>
-              <span>Executes reasoning via your local Ollama instance ({configuredModel}). Grounded in database facts.</span>
-            </div>
-
-            <div
-              style={{
-                padding: '0.75rem',
-                borderRadius: 6,
-                backgroundColor: !isConnected ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg-card-subtle)',
-                border: `1px solid ${!isConnected ? 'rgba(245, 158, 11, 0.3)' : 'var(--border-subtle)'}`,
-              }}
-            >
-              <strong style={{ color: !isConnected ? '#fbbf24' : 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>
-                {!isConnected ? '✓ Active: Mode B (Dataset Fallback)' : 'Mode B: Dataset Fallback'}
-              </strong>
-              <span>Full operational suite active: inventory, recalls, cold-chain, dispatches, and deterministic query triage.</span>
-            </div>
-          </div>
-
-          {/* Setup Instructions Section */}
+          {/* Setup Checklist */}
           <div
             style={{
               background: 'var(--bg-card-subtle)',
@@ -341,216 +312,305 @@ export function OfflineModelRequiredModal({
               padding: '1rem',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                <button
-                  onClick={() => setInstructionTab('ollama')}
-                  style={{
-                    padding: '0.25rem 0.65rem',
-                    borderRadius: 4,
-                    border: 'none',
-                    background: instructionTab === 'ollama' ? 'var(--accent-primary, #6366f1)' : 'var(--bg-surface)',
-                    color: instructionTab === 'ollama' ? '#fff' : 'var(--text-muted)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  1. Ollama Setup
-                </button>
-                <button
-                  onClick={() => setInstructionTab('companion')}
-                  style={{
-                    padding: '0.25rem 0.65rem',
-                    borderRadius: 4,
-                    border: 'none',
-                    background: instructionTab === 'companion' ? 'var(--accent-primary, #6366f1)' : 'var(--bg-surface)',
-                    color: instructionTab === 'companion' ? '#fff' : 'var(--text-muted)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  2. Local Helper Service
-                </button>
-                <button
-                  onClick={() => setInstructionTab('security')}
-                  style={{
-                    padding: '0.25rem 0.65rem',
-                    borderRadius: 4,
-                    border: 'none',
-                    background: instructionTab === 'security' ? 'var(--accent-primary, #6366f1)' : 'var(--bg-surface)',
-                    color: instructionTab === 'security' ? '#fff' : 'var(--text-muted)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  3. Browser Security / HTTPS
-                </button>
-              </div>
+            <h3
+              style={{
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: 'var(--text-muted)',
+                margin: '0 0 0.75rem 0',
+              }}
+            >
+              Setup checklist
+            </h3>
+            <ul
+              style={{
+                listStyle: 'none',
+                padding: 0,
+                margin: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                fontSize: '0.82rem',
+              }}
+            >
+              <li style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ color: status?.is_online ? '#34d399' : 'var(--text-dim)', display: 'inline-flex' }}>
+                  {status?.is_online ? <CheckIcon size={14} color="#34d399" /> : '○'}
+                </span>
+                <span style={{ color: 'var(--text-main)' }}>Install Ollama if it is not installed.</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ color: status?.model_available ? '#34d399' : 'var(--text-dim)', display: 'inline-flex' }}>
+                  {status?.model_available ? <CheckIcon size={14} color="#34d399" /> : '○'}
+                </span>
+                <span style={{ color: 'var(--text-main)' }}>
+                  Download the model configured for this application (
+                  <code style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--accent-primary)' }}>{configuredModel}</code>).
+                </span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ color: status?.is_online ? '#34d399' : 'var(--text-dim)', display: 'inline-flex' }}>
+                  {status?.is_online ? <CheckIcon size={14} color="#34d399" /> : '○'}
+                </span>
+                <span style={{ color: 'var(--text-main)' }}>Start the Ollama service.</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ color: status?.is_online ? '#34d399' : 'var(--text-dim)', display: 'inline-flex' }}>
+                  {status?.is_online ? <CheckIcon size={14} color="#34d399" /> : '○'}
+                </span>
+                <span style={{ color: 'var(--text-main)' }}>Verify that the backend can connect to Ollama.</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ color: isOnlineAndReady ? '#34d399' : 'var(--text-dim)', display: 'inline-flex' }}>
+                  {isOnlineAndReady ? <CheckIcon size={14} color="#34d399" /> : '○'}
+                </span>
+                <span style={{ color: 'var(--text-main)' }}>Retry the connection and check the model status.</span>
+              </li>
+            </ul>
+          </div>
 
-              <button
-                onClick={() => setShowInstructions((prev) => !prev)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-dim)',
-                  fontSize: '0.75rem',
-                  cursor: 'pointer',
-                }}
-              >
-                {showInstructions ? '▲ Collapse' : '▼ Expand'}
-              </button>
-            </div>
+          {/* Setup Instructions Collapsible */}
+          <div>
+            <button
+              onClick={() => setShowInstructions((prev) => !prev)}
+              className="btn-secondary"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.6rem 0.85rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                textAlign: 'left',
+              }}
+            >
+              <span>📖 Setup Instructions ({selectedOS.toUpperCase()})</span>
+              <span>{showInstructions ? '▲ Hide' : '▼ Expand'}</span>
+            </button>
 
             {showInstructions && (
-              <div>
-                {instructionTab === 'ollama' && (
+              <div
+                style={{
+                  marginTop: '0.75rem',
+                  padding: '1rem',
+                  borderRadius: 8,
+                  backgroundColor: '#1e242b',
+                  color: '#f8fafc',
+                  fontSize: '0.8rem',
+                }}
+              >
+                {/* OS Selector Tabs */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  {(['linux', 'macos', 'windows'] as const).map((os) => (
+                    <button
+                      key={os}
+                      onClick={() => setSelectedOS(os)}
+                      style={{
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: 4,
+                        border: 'none',
+                        background: selectedOS === os ? 'var(--accent-terracotta, #c05638)' : '#334155',
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {os}
+                    </button>
+                  ))}
+                </div>
+
+                {selectedOS === 'linux' && (
                   <div>
-                    {/* OS Selector Tabs */}
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                      {(['linux', 'macos', 'windows'] as const).map((os) => (
-                        <button
-                          key={os}
-                          onClick={() => setSelectedOS(os)}
-                          style={{
-                            padding: '0.2rem 0.55rem',
-                            borderRadius: 4,
-                            border: 'none',
-                            background: selectedOS === os ? '#475569' : 'transparent',
-                            color: selectedOS === os ? '#fff' : 'var(--text-muted)',
-                            fontSize: '0.73rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            textTransform: 'capitalize',
-                          }}
-                        >
-                          {os}
-                        </button>
-                      ))}
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#94a3b8' }}>
+                      1. Install Ollama via shell script:
+                    </p>
+                    <div
+                      style={{
+                        background: '#0f172a',
+                        padding: '0.5rem',
+                        borderRadius: 4,
+                        fontFamily: 'var(--font-mono)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '0.75rem',
+                      }}
+                    >
+                      <code>curl -fsSL https://ollama.com/install.sh | sh</code>
+                      <button
+                        onClick={() => copyToClipboard('curl -fsSL https://ollama.com/install.sh | sh')}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                      >
+                        {copiedCmd === 'curl -fsSL https://ollama.com/install.sh | sh' ? 'Copied!' : 'Copy'}
+                      </button>
                     </div>
 
-                    {selectedOS === 'linux' && (
-                      <div>
-                        <p style={{ margin: '0 0 0.35rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                          1. Install Ollama:
-                        </p>
-                        <div style={{ background: '#0f172a', padding: '0.5rem', borderRadius: 4, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.78rem' }}>
-                          <code>curl -fsSL https://ollama.com/install.sh | sh</code>
-                          <button onClick={() => copyToClipboard('curl -fsSL https://ollama.com/install.sh | sh')} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
-                            {copiedCmd === 'curl -fsSL https://ollama.com/install.sh | sh' ? 'Copied!' : 'Copy'}
-                          </button>
-                        </div>
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#94a3b8' }}>
+                      2. Pull the configured model:
+                    </p>
+                    <div
+                      style={{
+                        background: '#0f172a',
+                        padding: '0.5rem',
+                        borderRadius: 4,
+                        fontFamily: 'var(--font-mono)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '0.75rem',
+                      }}
+                    >
+                      <code>ollama pull {configuredModel}</code>
+                      <button
+                        onClick={() => copyToClipboard(`ollama pull ${configuredModel}`)}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                      >
+                        {copiedCmd === `ollama pull ${configuredModel}` ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
 
-                        <p style={{ margin: '0 0 0.35rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                          2. Pull the configured model ({configuredModel}):
-                        </p>
-                        <div style={{ background: '#0f172a', padding: '0.5rem', borderRadius: 4, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.78rem' }}>
-                          <code>ollama pull {configuredModel}</code>
-                          <button onClick={() => copyToClipboard(`ollama pull ${configuredModel}`)} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
-                            {copiedCmd === `ollama pull ${configuredModel}` ? 'Copied!' : 'Copy'}
-                          </button>
-                        </div>
-
-                        <p style={{ margin: '0 0 0.35rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                          3. Verify service is active:
-                        </p>
-                        <div style={{ background: '#0f172a', padding: '0.5rem', borderRadius: 4, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                          <code>systemctl is-active ollama || ollama serve</code>
-                          <button onClick={() => copyToClipboard('systemctl is-active ollama || ollama serve')} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
-                            {copiedCmd === 'systemctl is-active ollama || ollama serve' ? 'Copied!' : 'Copy'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedOS === 'macos' && (
-                      <div>
-                        <p style={{ margin: '0 0 0.35rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                          1. Install and start via Homebrew or DMG:
-                        </p>
-                        <div style={{ background: '#0f172a', padding: '0.5rem', borderRadius: 4, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.78rem' }}>
-                          <code>brew install ollama &amp;&amp; brew services start ollama</code>
-                          <button onClick={() => copyToClipboard('brew install ollama && brew services start ollama')} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
-                            {copiedCmd === 'brew install ollama && brew services start ollama' ? 'Copied!' : 'Copy'}
-                          </button>
-                        </div>
-
-                        <p style={{ margin: '0 0 0.35rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                          2. Pull the configured model:
-                        </p>
-                        <div style={{ background: '#0f172a', padding: '0.5rem', borderRadius: 4, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                          <code>ollama pull {configuredModel}</code>
-                          <button onClick={() => copyToClipboard(`ollama pull ${configuredModel}`)} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
-                            {copiedCmd === `ollama pull ${configuredModel}` ? 'Copied!' : 'Copy'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedOS === 'windows' && (
-                      <div>
-                        <p style={{ margin: '0 0 0.35rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                          1. Download and run installer from <code>https://ollama.com/download/windows</code>
-                        </p>
-                        <p style={{ margin: '0 0 0.35rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                          2. In PowerShell, pull model:
-                        </p>
-                        <div style={{ background: '#0f172a', padding: '0.5rem', borderRadius: 4, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                          <code>ollama pull {configuredModel}</code>
-                          <button onClick={() => copyToClipboard(`ollama pull ${configuredModel}`)} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
-                            {copiedCmd === `ollama pull ${configuredModel}` ? 'Copied!' : 'Copy'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#94a3b8' }}>
+                      3. Ensure systemd service is active:
+                    </p>
+                    <div
+                      style={{
+                        background: '#0f172a',
+                        padding: '0.5rem',
+                        borderRadius: 4,
+                        fontFamily: 'var(--font-mono)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <code>systemctl is-active ollama || ollama serve</code>
+                      <button
+                        onClick={() => copyToClipboard('systemctl is-active ollama || ollama serve')}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                      >
+                        {copiedCmd === 'systemctl is-active ollama || ollama serve' ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {instructionTab === 'companion' && (
+                {selectedOS === 'macos' && (
                   <div>
-                    <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                      The <strong>Arogya Companion</strong> is a lightweight, zero-dependency Python script that bridges your browser to Ollama with origin validation and Private Network Access (PNA) headers:
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#94a3b8' }}>
+                      1. Install Ollama via Homebrew or DMG:
                     </p>
-                    <div style={{ background: '#0f172a', padding: '0.6rem', borderRadius: 4, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.78rem' }}>
-                      <code>python3 scripts/arogya_companion.py</code>
-                      <button onClick={() => copyToClipboard('python3 scripts/arogya_companion.py')} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
-                        {copiedCmd === 'python3 scripts/arogya_companion.py' ? 'Copied!' : 'Copy'}
+                    <div
+                      style={{
+                        background: '#0f172a',
+                        padding: '0.5rem',
+                        borderRadius: 4,
+                        fontFamily: 'var(--font-mono)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '0.75rem',
+                      }}
+                    >
+                      <code>brew install ollama && brew services start ollama</code>
+                      <button
+                        onClick={() => copyToClipboard('brew install ollama && brew services start ollama')}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                      >
+                        {copiedCmd === 'brew install ollama && brew services start ollama' ? 'Copied!' : 'Copy'}
                       </button>
                     </div>
-                    <ul style={{ margin: 0, paddingLeft: '1.25rem', color: 'var(--text-muted)', fontSize: '0.76rem' }}>
-                      <li>Binds strictly to loopback: <code>127.0.0.1:11435</code>.</li>
-                      <li>Includes <code>Access-Control-Allow-Private-Network: true</code>.</li>
-                      <li>Proxies native Ollama endpoints (<code>/api/tags</code>, <code>/api/chat</code>).</li>
-                    </ul>
+
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#94a3b8' }}>
+                      2. Download the configured model:
+                    </p>
+                    <div
+                      style={{
+                        background: '#0f172a',
+                        padding: '0.5rem',
+                        borderRadius: 4,
+                        fontFamily: 'var(--font-mono)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <code>ollama pull {configuredModel}</code>
+                      <button
+                        onClick={() => copyToClipboard(`ollama pull ${configuredModel}`)}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                      >
+                        {copiedCmd === `ollama pull ${configuredModel}` ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {instructionTab === 'security' && (
+                {selectedOS === 'windows' && (
                   <div>
-                    <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                      <strong>Why can a hosted website be blocked from accessing localhost?</strong>
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#94a3b8' }}>
+                      1. Download Ollama for Windows from official site:
                     </p>
-                    <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                      When accessing Arogya AI over HTTPS (e.g., <code>https://*.vercel.app</code>), browsers enforce <em>Mixed Content</em> and <em>Private Network Access (PNA)</em> restrictions preventing public HTTPS pages from calling unencrypted HTTP loopback services without special preflight authorization.
+                    <div
+                      style={{
+                        background: '#0f172a',
+                        padding: '0.5rem',
+                        borderRadius: 4,
+                        fontFamily: 'var(--font-mono)',
+                        marginBottom: '0.75rem',
+                      }}
+                    >
+                      <code>https://ollama.com/download/windows</code>
+                    </div>
+
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#94a3b8' }}>
+                      2. In PowerShell or Command Prompt, pull the model:
                     </p>
-                    <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                      <strong>Recommended Solution:</strong>
-                    </p>
-                    <div style={{ background: '#0f172a', padding: '0.5rem', borderRadius: 4, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.76rem' }}>
-                      <code>python3 scripts/arogya_companion.py --ssl</code>
-                      <button onClick={() => copyToClipboard('python3 scripts/arogya_companion.py --ssl')} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
-                        {copiedCmd === 'python3 scripts/arogya_companion.py --ssl' ? 'Copied!' : 'Copy'}
+                    <div
+                      style={{
+                        background: '#0f172a',
+                        padding: '0.5rem',
+                        borderRadius: 4,
+                        fontFamily: 'var(--font-mono)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <code>ollama run {configuredModel}</code>
+                      <button
+                        onClick={() => copyToClipboard(`ollama run ${configuredModel}`)}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                      >
+                        {copiedCmd === `ollama run ${configuredModel}` ? 'Copied!' : 'Copy'}
                       </button>
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-                      Note: You do not need to disable browser security. If local AI is blocked, Arogya AI automatically functions in Dataset Fallback Mode.
-                    </span>
                   </div>
                 )}
               </div>
             )}
+          </div>
+
+          {/* Operational Continuity Clarification */}
+          <div
+            style={{
+              padding: '0.75rem',
+              borderRadius: 6,
+              backgroundColor: 'rgba(56, 189, 248, 0.08)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+              fontSize: '0.78rem',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <strong style={{ color: 'var(--text-main)' }}>Non-AI Operational Features Active:</strong>{' '}
+            If Ollama is offline, core pharmaceutical operations (Master Formulary, Physical Inventory Batches,
+            Healthcare Customers, Outbound Dispatches, Regulatory Recall Quarantine, Cold-Chain telemetry, and
+            Qualified Person Approvals) remain 100% functional with deterministic database rules.
           </div>
         </div>
 
@@ -574,14 +634,31 @@ export function OfflineModelRequiredModal({
               className="btn-primary"
               style={{
                 fontSize: '0.8rem',
-                padding: '0.45rem 0.95rem',
+                padding: '0.45rem 0.9rem',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
               }}
             >
-              <RefreshIcon size={14} className={loading ? 'spin-icon' : ''} />
-              <span>{loading ? 'Checking Local AI...' : 'Retry Local AI Connection'}</span>
+              {loading ? (
+                <>
+                  <span style={{ animation: 'spin 1s infinite linear', display: 'inline-block' }}>⟳</span>
+                  Checking...
+                </>
+              ) : (
+                <>
+                  <RefreshIcon size={14} /> Check Connection
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={checkConnection}
+              disabled={loading}
+              className="btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.45rem 0.85rem' }}
+            >
+              Retry Connection
             </button>
           </div>
 
